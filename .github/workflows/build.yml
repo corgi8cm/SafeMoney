@@ -32,10 +32,10 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Unit tests
-        run: gradle testDebugUnitTest --stacktrace
+        run: gradle testGithubDebugUnitTest --stacktrace
 
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+        run: gradle assembleGithubDebug assemblePlayDebug --stacktrace
 
       # Room exports the DB schema during compilation; it must be committed for future migrations.
       - name: Check Room schema is committed
@@ -58,7 +58,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: safemoney-debug-${{ github.sha }}
-          path: app/build/outputs/apk/debug/*.apk
+          path: app/build/outputs/apk/*/debug/*.apk
           if-no-files-found: error
 
       - name: Upload test reports

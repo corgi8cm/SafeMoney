@@ -6,6 +6,8 @@ import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import io.github.corgi8cm.safemoney.diagnostics.CrashLog
 import io.github.corgi8cm.safemoney.reminder.ReminderScheduler
 import io.github.corgi8cm.safemoney.reminder.ReminderSettings
+import io.github.corgi8cm.safemoney.update.UpdateChecker
+import io.github.corgi8cm.safemoney.update.UpdateFeedProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -22,6 +24,10 @@ class SafeMoneyApp : Application() {
     val reminderSettings: ReminderSettings by lazy { ReminderSettings(this) }
 
     val reminderScheduler: ReminderScheduler by lazy { ReminderScheduler(this) }
+
+    val updateChecker: UpdateChecker by lazy {
+        UpdateChecker(this, BuildConfig.VERSION_NAME, UpdateFeedProvider.feed)
+    }
 
     override fun onCreate() {
         super.onCreate()

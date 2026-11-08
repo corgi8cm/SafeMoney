@@ -21,7 +21,15 @@ data class HomeUiState(
     val hasAnyGoal: Boolean get() = active.isNotEmpty() || completed.isNotEmpty() || archived.isNotEmpty()
 }
 
-class HomeViewModel(repository: SafeMoneyRepository) : ViewModel() {
+class HomeViewModel(
+    repository: SafeMoneyRepository,
+    private val updateChecker: io.github.corgi8cm.safemoney.update.UpdateChecker,
+) : ViewModel() {
+    /** 有新版本時在首頁上方提醒（只有 github 版）。 */
+    val update = updateChecker.available
+
+    fun dismissUpdate(version: String) = updateChecker.dismiss(version)
+
     val state: StateFlow<HomeUiState> =
         combine(repository.observeGoals(), repository.observeSummary()) { goals, summary ->
             HomeUiState(

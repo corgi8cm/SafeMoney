@@ -19,3 +19,6 @@ Thumbs.db
 *.jks
 *.keystore
 keystore.properties
+
+# 例外：測試版用的固定簽章金鑰（公開、密碼 android），讓測試版可以覆蓋安裝並使用 Google 登入
+!app/debug.keystore

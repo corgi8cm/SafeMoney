@@ -12,6 +12,7 @@ import io.github.corgi8cm.safemoney.ui.QuickActions
 import io.github.corgi8cm.safemoney.ui.SafeMoneyNavHost
 import io.github.corgi8cm.safemoney.ui.theme.SafeMoneyTheme
 import io.github.corgi8cm.safemoney.widget.WidgetUpdater
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     /** 從桌面捷徑或小工具帶進來、還沒處理的動作（例如直接記一筆）。 */
@@ -27,6 +28,7 @@ class MainActivity : ComponentActivity() {
         // 資料只會在 App 開著時變動，開啟時開始監聽並更新主畫面小工具
         WidgetUpdater.start(application as SafeMoneyApp)
         QuickActions.publishShortcuts(this)
+        (application as SafeMoneyApp).let { app -> app.appScope.launch { app.updateChecker.checkIfDue() } }
         setContent {
             SafeMoneyTheme {
                 SafeMoneyNavHost(

@@ -46,6 +46,20 @@ class SettingsViewModel(
 
     val reminder: StateFlow<ReminderConfig> = app.reminderSettings.config
 
+    val updatesSupported: Boolean = app.updateChecker.supported
+    val updatesEnabled: StateFlow<Boolean> = app.updateChecker.enabled
+
+    fun setUpdatesEnabled(enabled: Boolean) = app.updateChecker.setEnabled(enabled)
+
+    fun checkUpdateNow() = runBusy {
+        val latest = app.updateChecker.checkNow()
+        message = when {
+            latest == null -> "目前無法檢查，請確認網路後再試"
+            app.updateChecker.isNewer(latest.version) -> "有新版本 v${latest.version}，可以到首頁下載"
+            else -> "已經是最新版本"
+        }
+    }
+
     fun setReminderEnabled(enabled: Boolean) = updateReminder(reminder.value.copy(enabled = enabled))
 
     fun setReminderTime(time: LocalTime) = updateReminder(reminder.value.copy(time = time))

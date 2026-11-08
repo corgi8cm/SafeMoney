@@ -4,6 +4,8 @@
     <!-- 每日提醒：Android 13 起發通知需要使用者同意；開機後重新排程 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 雲端同步（Google 雲端硬碟）與檢查新版本 -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:name=".SafeMoneyApp"
