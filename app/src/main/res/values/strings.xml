@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">省回來</string>
+    <string name="widget_name">回本進度</string>
+    <string name="widget_description">顯示總共省回多少，以及最接近回本的目標</string>
 </resources>
