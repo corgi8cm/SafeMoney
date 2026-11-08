@@ -23,6 +23,15 @@ android {
     // 沒有這些變數時 assembleRelease 仍可編譯，只是產出未簽章的 APK。
     val releaseStoreFile = System.getenv("SIGNING_STORE_FILE")
     signingConfigs {
+        // 測試版用 repo 裡固定的金鑰（公開，不是秘密）：每次建置簽章相同，可以直接覆蓋安裝，
+        // Google 登入也能用固定的 SHA-1 註冊。
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storeType = "PKCS12"
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (releaseStoreFile != null) {
             create("release") {
                 storeFile = file(releaseStoreFile)
@@ -31,6 +40,14 @@ android {
                 keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
             }
         }
+    }
+
+    // github：從 GitHub Releases 下載的版本，會檢查新版本。
+    // play：給 Google Play 的版本，Play 規定不能引導到 Play 以外更新，所以不檢查。
+    flavorDimensions += "store"
+    productFlavors {
+        create("github") { dimension = "store" }
+        create("play") { dimension = "store" }
     }
 
     buildTypes {
@@ -62,6 +79,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     testOptions {

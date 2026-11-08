@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +70,8 @@ fun HomeScreen(
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val update by viewModel.update.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
     var showArchived by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
@@ -106,6 +109,15 @@ fun HomeScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                update?.let { info ->
+                    item(key = "update") {
+                        UpdateCard(
+                            version = info.version,
+                            onDownload = { uriHandler.openUri(info.url) },
+                            onLater = { viewModel.dismissUpdate(info.version) },
+                        )
+                    }
+                }
                 state.summary?.takeIf { it.goalCount > 0 }?.let { summary ->
                     item(key = "summary") { SummaryCard(summary, onClick = onOpenStats) }
                 }
@@ -137,6 +149,23 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun UpdateCard(version: String, onDownload: () -> Unit, onLater: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        ),
+    ) {
+        Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("有新版本 v$version", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+            TextButton(onClick = onLater) { Text("稍後") }
+            TextButton(onClick = onDownload) { Text("下載") }
         }
     }
 }

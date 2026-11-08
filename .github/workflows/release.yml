@@ -72,12 +72,12 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle testDebugUnitTest assembleRelease --stacktrace
+        run: gradle testGithubDebugUnitTest assembleGithubRelease --stacktrace
 
       - name: Verify APK signature
         run: |
-          apk=app/build/outputs/apk/release/app-release.apk
-          test -f "$apk" || { echo "::error::Signed APK not found (was it built unsigned?)"; ls app/build/outputs/apk/release; exit 1; }
+          apk=app/build/outputs/apk/github/release/app-github-release.apk
+          test -f "$apk" || { echo "::error::Signed APK not found (was it built unsigned?)"; ls -R app/build/outputs/apk; exit 1; }
           build_tools=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
           "$ANDROID_HOME/build-tools/$build_tools/apksigner" verify --print-certs "$apk" | tee signature.txt
           grep -q "CN=SafeMoney" signature.txt

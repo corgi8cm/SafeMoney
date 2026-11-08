@@ -82,6 +82,8 @@ SafeMoney 把每一筆「想省回來的花費」變成一個**回本目標**，
   - 長按桌面圖示的「記一筆」捷徑（動態捷徑，測試版也能用）；小工具右上角「＋ 記一筆」
 - **多裝置同步**：用 Google 帳號登入，資料存在使用者自己 Google 雲端硬碟的 App 專用隱藏資料夾（appDataFolder），不經第三方伺服器
 - **新版提醒**：GitHub 版檢查 GitHub Releases；Play 版改用 Google Play 應用程式內更新（Play 規定不可引導到 Play 以外更新）
+  - ✅ product flavor `github` / `play`；github 版開 App 時每天最多查一次 `releases/latest`，首頁顯示「有新版本」，可在設定關閉或立即檢查
+  - ✅ 測試版改用 repo 內固定的公開 debug 金鑰（Google 登入可註冊固定 SHA-1，也能直接覆蓋安裝）
 - 做到可以上架 Google Play 的程度（隱私權說明、資料安全表單內容、AAB、商店素材），但先不實際上架
 
 ### 暫不做

@@ -17,10 +17,10 @@
 
 ### 測試版（每次 PR / push 的建置）
 
-GitHub Actions 的 **Build** 也會產出 `safemoney-debug-…`，安裝後名稱為「省回來 測試版」：
+GitHub Actions 的 **Build** 也會產出 `safemoney-debug-…`（`app-github-debug.apk` 是 GitHub 版、`app-play-debug.apk` 是 Play 版），安裝後名稱為「省回來 測試版」：
 
 - 與正式版是不同的 App，可以同時安裝，資料互不相通
-- 每次建置的簽章都不同，更新測試版通常需要先解除安裝（測試資料會消失）
+- 測試版使用 repo 內固定的公開金鑰（`app/debug.keystore`），新的測試版可以直接覆蓋安裝
 
 本專案不在本地編譯，所有 APK 都由 GitHub Actions 產生。
 

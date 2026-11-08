@@ -231,6 +231,23 @@ fun SettingsScreen(
                 headlineContent = { Text("省回來 SafeMoney") },
                 supportingContent = { Text("版本 ${viewModel.appVersion}") },
             )
+            if (viewModel.updatesSupported) {
+                val updatesEnabled by viewModel.updatesEnabled.collectAsStateWithLifecycle()
+                ListItem(
+                    leadingContent = { Icon(Icons.Filled.Refresh, contentDescription = null) },
+                    headlineContent = { Text("自動檢查新版本") },
+                    supportingContent = { Text("每天最多一次，從 GitHub 查詢") },
+                    trailingContent = { Switch(checked = updatesEnabled, onCheckedChange = null) },
+                    modifier = Modifier.clickable { viewModel.setUpdatesEnabled(!updatesEnabled) },
+                )
+                SettingRow(
+                    icon = Icons.Filled.Refresh,
+                    title = "立即檢查新版本",
+                    subtitle = "查詢 GitHub Releases",
+                    enabled = !viewModel.busy,
+                    onClick = viewModel::checkUpdateNow,
+                )
+            }
         }
     }
 
