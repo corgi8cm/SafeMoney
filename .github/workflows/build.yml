@@ -37,6 +37,23 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug --stacktrace
 
+      # Room exports the DB schema during compilation; it must be committed for future migrations.
+      - name: Check Room schema is committed
+        run: |
+          if [ -n "$(git status --porcelain app/schemas)" ]; then
+            git status --porcelain app/schemas
+            echo "::error::Room schema in app/schemas changed but is not committed. Download the 'room-schemas' artifact and commit it."
+            exit 1
+          fi
+
+      - name: Upload Room schemas
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: room-schemas
+          path: app/schemas/
+          if-no-files-found: ignore
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:

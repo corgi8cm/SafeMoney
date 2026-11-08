@@ -85,7 +85,7 @@ data class Goal(
 @Entity
 data class Saving(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val amount: Long,            // 這次總共省下 100
+    // 總金額不另存，= 其所有 SavingAllocation.amount 的加總（例：100）
     val reason: String,          // 沒叫外送
     val date: LocalDate,
     val createdAt: Instant,
@@ -106,9 +106,12 @@ data class SavingAllocation(
 )
 ```
 
-- 拆分規則：同一筆紀錄的各分配金額加總必須等於 `Saving.amount`（存檔時在 Repository 驗證）。
-- 記錄頁預設只選一個目標（最常見情境）；按「拆分」可加入多個目標，並提供「平均分配」快捷鍵。
+- 拆分規則：至少分給一個目標、每份金額 > 0、同一目標不可重複（`Allocations.validate`）。
+- 紀錄總金額 = 分配加總，因此不會出現「總額與分配不符」；刪除目標時，分給它的部分一起消失，完全沒有分配的紀錄也會被刪除。
+- 記錄頁預設只選一個目標（最常見情境）；按「拆分」可加入多個目標，並提供「平均分配」快捷鍵（`Allocations.splitEvenly`，餘數從第一個目標起各多 1 元）。
 - 已省金額不另存欄位，用 `SUM(saving_allocation.amount) WHERE goalId = ?` 即時計算，避免資料不一致。
+- 目標狀態由 Repository 自動維護：已省 ≥ 目標金額 → `COMPLETED`；之後若刪除紀錄或調高金額而不足 → 退回 `ACTIVE`；`ARCHIVED` 不受影響。
+- 資料庫 schema 匯出到 `app/schemas/` 並進 git，之後改版時用來撰寫與驗證 migration。CI 會檢查 schema 是否已提交。
 - 金額一律用整數（元），台幣不需要小數。
 
 ## 6. 畫面規劃
@@ -155,7 +158,7 @@ SafeMoney/
 - 版本號：語意化版本 `v0.1.0`、`v0.2.0`…，打 tag 觸發 release
 - `.gitignore` 排除：`build/`、`.gradle/`、`local.properties`、`*.jks` / `*.keystore`（簽章金鑰絕不進 git）
 
-> 專案放在 `C:\dev\SafeMoney`（非 OneDrive 同步資料夾），避免 OneDrive 同步 `.git` 造成衝突；備份交給 GitHub。
+> 專案放在 OneDrive 同步資料夾內。OneDrive 同步 `.git` 偶爾會造成檔案鎖定或產生衝突副本；若 git 出現奇怪錯誤，先暫停 OneDrive 同步再操作。主要備份是 GitHub。
 
 ## 9. GitHub Actions 雲端編譯 APK
 
@@ -200,4 +203,4 @@ SafeMoney/
 1. App 名稱：英文 SafeMoney，中文「省回來」（手機上顯示「省回來」）
 2. 一筆省錢紀錄**允許拆分到多個目標**（見第 5 節 `SavingAllocation`）
 3. GitHub repo 為 **public**
-4. 專案已從 OneDrive 搬到 `C:\dev\SafeMoney`
+4. 專案放在原本的 OneDrive 資料夾（`桌面\projects\safe_money\SafeMoney`）
