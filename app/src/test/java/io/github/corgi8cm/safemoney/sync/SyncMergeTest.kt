@@ -9,13 +9,16 @@ import java.time.Instant
 class SyncMergeTest {
     private val now = Instant.parse("2026-11-09T12:00:00Z")
 
+    /** 測試裡的時間都寫成「基準時間 + 幾毫秒」，避免被「一年以上的墓碑」規則清掉。 */
+    private val base = now.toEpochMilli() - 1_000_000
+
     private fun goal(uid: String, name: String = uid, updatedAt: Long = 100, archived: Boolean = false) =
-        SyncGoal(uid, name, 1_000, "2026-11-01", archived = archived, createdAt = 1, updatedAt = updatedAt)
+        SyncGoal(uid, name, 1_000, "2026-11-01", archived = archived, createdAt = base, updatedAt = base + updatedAt)
 
     private fun saving(uid: String, vararg goals: String, updatedAt: Long = 100) =
-        SyncSaving(uid, "飲料", "2026-11-08", createdAt = 1, updatedAt = updatedAt, allocations = goals.map { SyncAllocation(it, 10) })
+        SyncSaving(uid, "飲料", "2026-11-08", createdAt = base, updatedAt = base + updatedAt, allocations = goals.map { SyncAllocation(it, 10) })
 
-    private fun gone(uid: String, at: Long, entity: String = Deletion.GOAL) = SyncDeletion(uid, entity, at)
+    private fun gone(uid: String, at: Long, entity: String = Deletion.GOAL) = SyncDeletion(uid, entity, base + at)
 
     @Test
     fun firstSyncWithoutRemoteKeepsLocal() {
@@ -69,11 +72,11 @@ class SyncMergeTest {
 
     @Test
     fun duplicateQuickReasonTextKeepsOne() {
-        val local = SyncDoc(quickReasons = listOf(SyncReason("r2", "沒買宵夜", 0, 100)))
-        val remote = SyncDoc(quickReasons = listOf(SyncReason("r1", "沒買宵夜", 3, 200)))
+        val local = SyncDoc(quickReasons = listOf(SyncReason("r2", "沒買宵夜", 0, base + 100)))
+        val remote = SyncDoc(quickReasons = listOf(SyncReason("r1", "沒買宵夜", 3, base + 200)))
         val merged = mergeSync(local, remote, now)
         assertEquals(listOf("r1"), merged.quickReasons.map { it.uid })
-        assertEquals(listOf(SyncDeletion("r2", Deletion.QUICK_REASON, 100)), merged.deletions)
+        assertEquals(listOf(SyncDeletion("r2", Deletion.QUICK_REASON, base + 100)), merged.deletions)
 
         // 另一支手機用同樣的輸入也得到同樣的結果
         assertEquals(merged, mergeSync(remote, local, now))
@@ -85,7 +88,11 @@ class SyncMergeTest {
     fun oldTombstonesArePurged() {
         val old = now.minus(TOMBSTONE_RETENTION).minusSeconds(1).toEpochMilli()
         val recent = now.minusSeconds(60).toEpochMilli()
-        val merged = mergeSync(SyncDoc(deletions = listOf(gone("old", old), gone("new", recent))), null, now)
+        val merged = mergeSync(
+            SyncDoc(deletions = listOf(SyncDeletion("old", Deletion.GOAL, old), SyncDeletion("new", Deletion.GOAL, recent))),
+            null,
+            now,
+        )
         assertEquals(listOf("new"), merged.deletions.map { it.uid })
     }
 
