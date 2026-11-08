@@ -1,0 +1,106 @@
+name: Release
+
+# 推送 v* tag（例如 v0.2.0）→ 編譯正式簽章 APK 並發佈到 GitHub Releases。
+# 修改這個 workflow 或 app/build.gradle.kts 的 PR 會跑一次「乾跑」：只編譯並驗證簽章，不發佈。
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "app/build.gradle.kts"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Read version
+        id: version
+        run: |
+          name=$(sed -n 's/^ *versionName = "\(.*\)"/\1/p' app/build.gradle.kts)
+          code=$(sed -n 's/^ *versionCode = \([0-9]*\)/\1/p' app/build.gradle.kts)
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "versionName=$name versionCode=$code"
+
+      - name: Check tag matches versionName
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          expected="v${{ steps.version.outputs.name }}"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match versionName in app/build.gradle.kts ($expected). Bump versionName/versionCode first."
+            exit 1
+          fi
+
+      - name: Restore signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Secret KEYSTORE_BASE64 is not available (missing, or this run comes from a fork)."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.p12"
+
+      - name: Unit tests and signed release APK
+        env:
+          SIGNING_STORE_FILE: ${{ runner.temp }}/release.p12
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: gradle testDebugUnitTest assembleRelease --stacktrace
+
+      - name: Verify APK signature
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          test -f "$apk" || { echo "::error::Signed APK not found (was it built unsigned?)"; ls app/build/outputs/apk/release; exit 1; }
+          build_tools=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          "$ANDROID_HOME/build-tools/$build_tools/apksigner" verify --print-certs "$apk" | tee signature.txt
+          grep -q "CN=SafeMoney" signature.txt
+          out="SafeMoney-v${{ steps.version.outputs.name }}.apk"
+          cp "$apk" "$out"
+          echo "APK=$out" >> "$GITHUB_ENV"
+
+      - name: Upload signed APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: safemoney-release-v${{ steps.version.outputs.name }}
+          path: ${{ env.APK }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$APK" \
+            --title "省回來 $GITHUB_REF_NAME" \
+            --generate-notes
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.p12"

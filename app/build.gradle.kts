@@ -18,8 +18,30 @@ android {
         versionName = "0.2.0"
     }
 
+    // 正式簽章：只在 CI 的 release workflow 透過環境變數提供（金鑰放在 GitHub Secrets，不進 git）。
+    // 沒有這些變數時 assembleRelease 仍可編譯，只是產出未簽章的 APK。
+    val releaseStoreFile = System.getenv("SIGNING_STORE_FILE")
+    signingConfigs {
+        if (releaseStoreFile != null) {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // 測試版與正式版可以同時裝在手機上，互不覆蓋、資料分開
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
+            if (releaseStoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
