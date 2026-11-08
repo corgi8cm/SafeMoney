@@ -40,6 +40,8 @@ class SafeMoneyRepository(
 
     fun observeAllSavings(): Flow<List<SavingWithAllocations>> = savingDao.observeAll()
 
+    suspend fun getSaving(id: Long): SavingWithAllocations? = savingDao.getWithAllocations(id)
+
     fun observeSummary(): Flow<Summary> = observeGoals().map { goals ->
         val visible = goals.filter { it.goal.status != GoalStatus.ARCHIVED }
         Summary(
