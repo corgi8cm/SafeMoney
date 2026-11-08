@@ -47,6 +47,9 @@ interface GoalDao {
     @Query("$GOAL_WITH_SAVED WHERE goal.id = :id")
     fun observeWithSaved(id: Long): Flow<GoalWithSaved?>
 
+    @Query("$GOAL_WITH_SAVED")
+    suspend fun getAllWithSaved(): List<GoalWithSaved>
+
     @Query("$GOAL_WITH_SAVED WHERE goal.id = :id")
     suspend fun getWithSaved(id: Long): GoalWithSaved?
 }

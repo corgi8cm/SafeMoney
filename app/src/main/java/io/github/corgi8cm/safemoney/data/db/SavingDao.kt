@@ -19,6 +19,9 @@ interface SavingDao {
     @Insert
     suspend fun insertSavings(savings: List<Saving>)
 
+    @Query("SELECT COUNT(*) FROM saving WHERE date = :date")
+    suspend fun countOnDate(date: java.time.LocalDate): Int
+
     @Query("DELETE FROM saving")
     suspend fun deleteAll()
 
