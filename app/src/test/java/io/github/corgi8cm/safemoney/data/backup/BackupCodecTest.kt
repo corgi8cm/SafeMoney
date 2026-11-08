@@ -76,6 +76,23 @@ class BackupCodecTest {
     }
 
     @Test
+    fun version1BackupGetsUidsAndUpdatedAtFromCreatedAt() {
+        val saving = """[{"id":1,"reason":"飲料","date":"2026-11-08","createdAt":"2026-11-08T12:00:00Z","allocations":[{"goalId":1,"amount":60}]}]"""
+        val data = BackupCodec.decode(minimal(goals = "[$okGoal]", savings = saving, version = 1))
+        val goal = data.goals.single()
+        assertTrue(goal.uid.isNotBlank())
+        assertEquals(goal.createdAt, goal.updatedAt)
+        assertTrue(data.savings.single().saving.uid.isNotBlank())
+    }
+
+    @Test
+    fun rejectsDuplicateUids() {
+        val g1 = okGoal.replace("}", ""","uid":"same"}""")
+        val g2 = g1.replace("\"id\":1", "\"id\":2")
+        assertRejected(minimal(goals = "[$g1,$g2]", version = 2), "uid 重複")
+    }
+
+    @Test
     fun rejectsGarbage() {
         assertRejected("not json", "不是有效的備份檔")
         assertRejected("""{"hello":"world"}""", "不是有效的備份檔")
@@ -84,7 +101,7 @@ class BackupCodecTest {
     @Test
     fun rejectsOtherFormatsAndNewerVersions() {
         assertRejected(minimal(format = "other-app"), "不是省回來的備份檔")
-        assertRejected(minimal(version = 2), "較新版本")
+        assertRejected(minimal(version = 3), "較新版本")
     }
 
     @Test

@@ -6,6 +6,7 @@ import io.github.corgi8cm.safemoney.data.db.Goal
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.DEFAULT_QUICK_REASONS
+import io.github.corgi8cm.safemoney.data.db.Deletion
 import io.github.corgi8cm.safemoney.data.db.QuickReason
 import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import io.github.corgi8cm.safemoney.data.db.Saving
@@ -33,6 +34,7 @@ class SafeMoneyRepository(
     private val goalDao = db.goalDao()
     private val savingDao = db.savingDao()
     private val reasonDao = db.quickReasonDao()
+    private val deletionDao = db.deletionDao()
 
     // ---- 讀取 ----
 
@@ -82,6 +84,7 @@ class SafeMoneyRepository(
                 color = color,
                 createdAt = clock.instant(),
                 emoji = emoji?.trim()?.ifEmpty { null },
+                updatedAt = clock.instant(),
             )
         )
     }
@@ -102,6 +105,8 @@ class SafeMoneyRepository(
                     status = existing.status,
                     completedAt = existing.completedAt,
                     createdAt = existing.createdAt,
+                    uid = existing.uid,
+                    updatedAt = clock.instant(),
                 )
             )
             refreshCompletion(listOf(goal.id))
@@ -112,9 +117,9 @@ class SafeMoneyRepository(
         db.withTransaction {
             val goal = requireNotNull(goalDao.getById(goalId)) { "找不到目標 $goalId" }
             if (archived) {
-                goalDao.update(goal.copy(status = GoalStatus.ARCHIVED))
+                goalDao.update(goal.copy(status = GoalStatus.ARCHIVED, updatedAt = clock.instant()))
             } else if (goal.status == GoalStatus.ARCHIVED) {
-                goalDao.update(goal.copy(status = GoalStatus.ACTIVE, completedAt = null))
+                goalDao.update(goal.copy(status = GoalStatus.ACTIVE, completedAt = null, updatedAt = clock.instant()))
                 refreshCompletion(listOf(goalId))
             }
         }
@@ -127,6 +132,14 @@ class SafeMoneyRepository(
     suspend fun deleteGoal(goalId: Long): DeletedGoal? = db.withTransaction {
         val goal = goalDao.getById(goalId) ?: return@withTransaction null
         val savings = savingDao.getForGoal(goalId)
+        val now = clock.instant()
+        // 只分給這個目標的紀錄會整筆消失；拆分的紀錄則是內容（分配）有變動
+        val (orphaned, split) = savings.partition { s -> s.allocations.all { it.goalId == goalId } }
+        deletionDao.insertAll(
+            listOf(Deletion(goal.uid, Deletion.GOAL, now)) +
+                orphaned.map { Deletion(it.saving.uid, Deletion.SAVING, now) }
+        )
+        split.forEach { savingDao.updateSaving(it.saving.copy(updatedAt = now)) }
         goalDao.delete(goal)
         savingDao.deleteOrphanSavings()
         DeletedGoal(goal, savings)
@@ -135,17 +148,22 @@ class SafeMoneyRepository(
     /** 復原 [deleteGoal]：放回目標（原編號、原狀態），以及它在各紀錄中的分配。 */
     suspend fun undoDeleteGoal(deleted: DeletedGoal) {
         db.withTransaction {
-            goalDao.insert(deleted.goal)
+            // 復原也是一次修改：修改時間要比刪除新，其他裝置同步時才不會又刪掉
+            val now = clock.instant()
+            goalDao.insert(deleted.goal.copy(updatedAt = now))
             for (item in deleted.savings) {
-                if (savingDao.getWithAllocations(item.saving.id) == null) {
+                val current = savingDao.getWithAllocations(item.saving.id)
+                if (current == null) {
                     // 整筆紀錄當時跟著被刪掉了，原樣放回
-                    savingDao.insertSaving(item.saving)
+                    savingDao.insertSaving(item.saving.copy(updatedAt = now))
                     savingDao.insertAllocations(item.allocations.filter { goalDao.getById(it.goalId) != null })
                 } else {
                     // 拆分的紀錄還在，只放回分給這個目標的部分
+                    savingDao.updateSaving(current.saving.copy(updatedAt = now))
                     savingDao.insertAllocations(item.allocations.filter { it.goalId == deleted.goal.id })
                 }
             }
+            clearDeletions(listOf(deleted.goal.uid) + deleted.savings.map { it.saving.uid })
             refreshCompletion(listOf(deleted.goal.id))
         }
     }
@@ -161,7 +179,7 @@ class SafeMoneyRepository(
         Allocations.validate(allocations)
         requireGoalsExist(allocations)
         val savingId = savingDao.insertSaving(
-            Saving(reason = reason.trim(), date = date, createdAt = clock.instant())
+            Saving(reason = reason.trim(), date = date, createdAt = clock.instant(), updatedAt = clock.instant())
         )
         savingDao.insertAllocations(allocations.map { SavingAllocation(savingId, it.goalId, it.amount) })
         SaveResult(savingId, refreshCompletion(allocations.map { it.goalId }))
@@ -177,7 +195,7 @@ class SafeMoneyRepository(
         Allocations.validate(allocations)
         requireGoalsExist(allocations)
         val existing = requireNotNull(savingDao.getWithAllocations(savingId)) { "找不到紀錄 $savingId" }
-        savingDao.updateSaving(existing.saving.copy(reason = reason.trim(), date = date))
+        savingDao.updateSaving(existing.saving.copy(reason = reason.trim(), date = date, updatedAt = clock.instant()))
         savingDao.deleteAllocations(savingId)
         savingDao.insertAllocations(allocations.map { SavingAllocation(savingId, it.goalId, it.amount) })
         refreshCompletion(existing.allocations.map { it.goalId } + allocations.map { it.goalId })
@@ -214,6 +232,9 @@ class SafeMoneyRepository(
                 savingDao.updateAllocation(existingTarget.copy(amount = existingTarget.amount + moved))
             }
             remaining -= moved
+            savingDao.getWithAllocations(allocation.savingId)?.let {
+                savingDao.updateSaving(it.saving.copy(updatedAt = clock.instant()))
+            }
         }
         TransferResult(transferred = overflow, completedGoalIds = refreshCompletion(listOf(fromGoalId, toGoalId)))
     }
@@ -221,6 +242,7 @@ class SafeMoneyRepository(
     /** @return 刪除前的紀錄，給「復原」用；不存在時為 null */
     suspend fun deleteSaving(savingId: Long): SavingWithAllocations? = db.withTransaction {
         val existing = savingDao.getWithAllocations(savingId) ?: return@withTransaction null
+        deletionDao.insertAll(listOf(Deletion(existing.saving.uid, Deletion.SAVING, clock.instant())))
         savingDao.deleteSaving(savingId) // 分配會因 CASCADE 一併刪除
         refreshCompletion(existing.allocations.map { it.goalId })
         existing
@@ -231,8 +253,9 @@ class SafeMoneyRepository(
         db.withTransaction {
             val allocations = deleted.allocations.filter { goalDao.getById(it.goalId) != null }
             if (allocations.isEmpty() || savingDao.getWithAllocations(deleted.saving.id) != null) return@withTransaction
-            savingDao.insertSaving(deleted.saving)
+            savingDao.insertSaving(deleted.saving.copy(updatedAt = clock.instant()))
             savingDao.insertAllocations(allocations)
+            clearDeletions(listOf(deleted.saving.uid))
             refreshCompletion(allocations.map { it.goalId })
         }
     }
@@ -250,7 +273,7 @@ class SafeMoneyRepository(
         val clean = validateReason(text)
         db.withTransaction {
             require(reasonDao.getByText(clean) == null) { "「$clean」已經在清單裡了" }
-            reasonDao.insert(QuickReason(text = clean, position = reasonDao.maxPosition() + 1))
+            reasonDao.insert(QuickReason(text = clean, position = reasonDao.maxPosition() + 1, updatedAt = clock.instant()))
         }
     }
 
@@ -260,16 +283,25 @@ class SafeMoneyRepository(
             val existing = reasonDao.getAll().firstOrNull { it.id == id } ?: return@withTransaction
             val sameText = reasonDao.getByText(clean)
             require(sameText == null || sameText.id == id) { "「$clean」已經在清單裡了" }
-            reasonDao.update(existing.copy(text = clean))
+            reasonDao.update(existing.copy(text = clean, updatedAt = clock.instant()))
         }
     }
 
-    suspend fun deleteQuickReason(id: Long) = reasonDao.delete(id)
+    suspend fun deleteQuickReason(id: Long) {
+        db.withTransaction {
+            val existing = reasonDao.getAll().firstOrNull { it.id == id } ?: return@withTransaction
+            deletionDao.insertAll(listOf(Deletion(existing.uid, Deletion.QUICK_REASON, clock.instant())))
+            reasonDao.delete(id)
+        }
+    }
 
     /** 復原刪除的快捷原因；期間又新增了同名的就不重複放回。 */
     suspend fun restoreQuickReason(reason: QuickReason) {
         db.withTransaction {
-            if (reasonDao.getByText(reason.text) == null) reasonDao.insert(reason)
+            if (reasonDao.getByText(reason.text) == null) {
+                reasonDao.insert(reason.copy(updatedAt = clock.instant()))
+                clearDeletions(listOf(reason.uid))
+            }
         }
     }
 
@@ -278,10 +310,12 @@ class SafeMoneyRepository(
 
     private suspend fun replaceQuickReasons(texts: List<String>) {
         db.withTransaction {
+            val now = clock.instant()
+            deletionDao.insertAll(reasonDao.getAll().map { Deletion(it.uid, Deletion.QUICK_REASON, now) })
             reasonDao.deleteAll()
             reasonDao.insertAll(
                 texts.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-                    .mapIndexed { index, text -> QuickReason(text = text, position = index) }
+                    .mapIndexed { index, text -> QuickReason(text = text, position = index, updatedAt = now) }
             )
         }
     }
@@ -313,6 +347,16 @@ class SafeMoneyRepository(
      */
     suspend fun restore(data: BackupData) {
         db.withTransaction {
+            // 還原 = 取代：手機上有、備份檔沒有的資料，對其他裝置來說就是被刪除了
+            val now = clock.instant()
+            val keepGoals = data.goals.map { it.uid }.toSet()
+            val keepSavings = data.savings.map { it.saving.uid }.toSet()
+            deletionDao.insertAll(
+                goalDao.getAll().filter { it.uid !in keepGoals }.map { Deletion(it.uid, Deletion.GOAL, now) } +
+                    savingDao.getAllWithAllocations().filter { it.saving.uid !in keepSavings }
+                        .map { Deletion(it.saving.uid, Deletion.SAVING, now) }
+            )
+            clearDeletions((keepGoals + keepSavings).toList())
             savingDao.deleteAll()
             goalDao.deleteAll()
             goalDao.insertAll(data.goals)
@@ -324,7 +368,17 @@ class SafeMoneyRepository(
         }
     }
 
+    // ---- 同步用 ----
+
+    /** 刪除紀錄（墓碑），同步時告訴其他裝置哪些資料被刪了。 */
+    suspend fun deletions(): List<Deletion> = deletionDao.getAll()
+
     // ---- 內部 ----
+
+    /** 資料又回來了（復原、還原），移除它們的刪除紀錄。分批避免超過 SQLite 參數上限。 */
+    private suspend fun clearDeletions(uids: List<String>) {
+        uids.chunked(500).forEach { deletionDao.deleteByUids(it) }
+    }
 
     private fun validateGoal(name: String, amount: Long) {
         require(name.isNotBlank()) { "目標名稱不能空白" }

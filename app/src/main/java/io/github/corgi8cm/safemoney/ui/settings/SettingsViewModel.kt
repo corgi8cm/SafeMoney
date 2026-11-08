@@ -11,6 +11,7 @@ import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.backup.BackupCodec
 import io.github.corgi8cm.safemoney.data.backup.BackupData
 import io.github.corgi8cm.safemoney.data.backup.BackupException
+import io.github.corgi8cm.safemoney.diagnostics.CrashLog
 import io.github.corgi8cm.safemoney.reminder.ReminderConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -57,6 +58,28 @@ class SettingsViewModel(
     /** 給畫面顯示一次性訊息（例如沒有通知權限）。 */
     fun showMessage(text: String) {
         message = text
+    }
+
+    /** 有沒有錯誤紀錄可以匯出。 */
+    var hasCrashLog by mutableStateOf(CrashLog.read(app) != null)
+        private set
+
+    fun crashLogFileName(today: LocalDate = LocalDate.now()): String =
+        "safemoney-error-log-${today.format(DateTimeFormatter.BASIC_ISO_DATE)}.txt"
+
+    fun exportCrashLog(uri: Uri) = runBusy {
+        val text = CrashLog.read(app) ?: throw IOException("沒有錯誤紀錄")
+        withContext(Dispatchers.IO) {
+            val stream = app.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("無法開啟檔案")
+            stream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        }
+        message = "已匯出錯誤紀錄"
+    }
+
+    fun clearCrashLog() {
+        CrashLog.clear(app)
+        hasCrashLog = false
+        message = "已清除錯誤紀錄"
     }
 
     var busy by mutableStateOf(false)
