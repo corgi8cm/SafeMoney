@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
@@ -100,6 +101,9 @@ fun SettingsScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri -> uri?.let(viewModel::export) }
+    val crashLogLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/plain"),
+    ) { uri -> uri?.let(viewModel::exportCrashLog) }
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let(viewModel::pickRestore) }
@@ -194,6 +198,32 @@ fun SettingsScreen(
                 enabled = !viewModel.busy,
                 onClick = { restoreLauncher.launch(BACKUP_MIME_TYPES) },
             )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            SectionTitle("錯誤紀錄")
+            Text(
+                "App 當掉時會把原因記在這支手機上（不會上傳）。回報問題時可以匯出給開發者。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            if (viewModel.hasCrashLog) {
+                SettingRow(
+                    icon = Icons.Filled.Share,
+                    title = "匯出錯誤紀錄",
+                    subtitle = "存成文字檔",
+                    enabled = !viewModel.busy,
+                    onClick = { crashLogLauncher.launch(viewModel.crashLogFileName()) },
+                )
+                SettingRow(
+                    icon = Icons.Filled.Delete,
+                    title = "清除錯誤紀錄",
+                    subtitle = "刪除手機上記下的錯誤原因",
+                    enabled = !viewModel.busy,
+                    onClick = viewModel::clearCrashLog,
+                )
+            } else {
+                ListItem(headlineContent = { Text("目前沒有錯誤紀錄") })
+            }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionTitle("關於")
             ListItem(

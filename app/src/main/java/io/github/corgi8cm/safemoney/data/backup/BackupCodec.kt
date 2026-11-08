@@ -5,6 +5,7 @@ import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.Saving
 import io.github.corgi8cm.safemoney.data.db.SavingAllocation
 import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
+import io.github.corgi8cm.safemoney.data.db.newUid
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -25,8 +26,9 @@ data class BackupData(
     val quickReasons: List<String>? = null,
 )
 
-// ---- JSON 檔案格式（第 1 版）----
+// ---- JSON 檔案格式 ----
 // 日期用 ISO-8601 字串（2026-11-08、2026-11-08T12:00:00Z），方便人看，也不受時區影響。
+// 第 1 版：基本資料。第 2 版：目標與紀錄加上 uid（跨裝置唯一編號）與 updatedAt；讀第 1 版時自動補上。
 
 @Serializable
 internal data class BackupFile(
@@ -51,6 +53,8 @@ internal data class GoalJson(
     val createdAt: String,
     val completedAt: String? = null,
     val emoji: String? = null,
+    val uid: String? = null,
+    val updatedAt: String? = null,
 )
 
 @Serializable
@@ -60,6 +64,8 @@ internal data class SavingJson(
     val date: String,
     val createdAt: String,
     val allocations: List<AllocationJson>,
+    val uid: String? = null,
+    val updatedAt: String? = null,
 )
 
 @Serializable
@@ -68,7 +74,7 @@ internal data class AllocationJson(val goalId: Long, val amount: Long)
 /** 備份檔的編碼 / 解碼與驗證，不碰資料庫。 */
 object BackupCodec {
     const val FORMAT_ID = "safemoney-backup"
-    const val CURRENT_VERSION = 1
+    const val CURRENT_VERSION = 2
 
     private val json = Json {
         prettyPrint = true
@@ -94,6 +100,8 @@ object BackupCodec {
                     createdAt = g.createdAt.toString(),
                     completedAt = g.completedAt?.toString(),
                     emoji = g.emoji,
+                    uid = g.uid,
+                    updatedAt = g.updatedAt.toString(),
                 )
             },
             savings = data.savings.sortedBy { it.saving.id }.map { s ->
@@ -103,6 +111,8 @@ object BackupCodec {
                     date = s.saving.date.toString(),
                     createdAt = s.saving.createdAt.toString(),
                     allocations = s.allocations.sortedBy { it.goalId }.map { AllocationJson(it.goalId, it.amount) },
+                    uid = s.saving.uid,
+                    updatedAt = s.saving.updatedAt.toString(),
                 )
             },
             quickReasons = data.quickReasons,
@@ -131,6 +141,7 @@ object BackupCodec {
             check(g.name.isNotBlank()) { "有目標沒有名稱" }
             check(g.amount > 0) { "「${g.name}」的金額必須大於 0" }
         }
+        check(goals.map { it.uid }.toSet().size == goals.size) { "目標的 uid 重複" }
 
         val savingIds = HashSet<Long>()
         val savings = file.savings.map { s ->
@@ -140,11 +151,21 @@ object BackupCodec {
             check(s.allocations.all { it.amount > 0 }) { "有紀錄的金額不大於 0" }
             check(s.allocations.map { it.goalId }.toSet().size == s.allocations.size) { "有紀錄重複分配給同一個目標" }
             check(s.allocations.all { it.goalId in goalIds }) { "有紀錄分配給不存在的目標" }
+            val createdAt = parseInstant(s.createdAt)
             SavingWithAllocations(
-                saving = Saving(id = s.id, reason = s.reason, date = parseDate(s.date), createdAt = parseInstant(s.createdAt)),
+                saving = Saving(
+                    id = s.id,
+                    reason = s.reason,
+                    date = parseDate(s.date),
+                    createdAt = createdAt,
+                    uid = s.uid?.takeIf { it.isNotBlank() } ?: newUid(),
+                    updatedAt = s.updatedAt?.let(::parseInstant) ?: createdAt,
+                ),
                 allocations = s.allocations.map { SavingAllocation(s.id, it.goalId, it.amount) },
             )
         }
+
+        check(savings.map { it.saving.uid }.toSet().size == savings.size) { "紀錄的 uid 重複" }
 
         return BackupData(
             exportedAt = parseInstant(file.exportedAt),
@@ -155,19 +176,24 @@ object BackupCodec {
         )
     }
 
-    private fun GoalJson.toEntity() = Goal(
-        id = id,
-        name = name,
-        amount = amount,
-        purchaseDate = parseDate(purchaseDate),
-        note = note,
-        color = color,
-        status = GoalStatus.entries.firstOrNull { it.name == status }
-            ?: throw BackupException("備份檔內容有誤：不認得的目標狀態「$status」"),
-        createdAt = parseInstant(createdAt),
-        completedAt = completedAt?.let(::parseInstant),
-        emoji = emoji,
-    )
+    private fun GoalJson.toEntity(): Goal {
+        val created = parseInstant(createdAt)
+        return Goal(
+            id = id,
+            name = name,
+            amount = amount,
+            purchaseDate = parseDate(purchaseDate),
+            note = note,
+            color = color,
+            status = GoalStatus.entries.firstOrNull { it.name == status }
+                ?: throw BackupException("備份檔內容有誤：不認得的目標狀態「$status」"),
+            createdAt = created,
+            completedAt = completedAt?.let(::parseInstant),
+            emoji = emoji,
+            uid = uid?.takeIf { it.isNotBlank() } ?: newUid(),
+            updatedAt = updatedAt?.let(::parseInstant) ?: created,
+        )
+    }
 
     private inline fun check(condition: Boolean, message: () -> String) {
         if (!condition) throw BackupException("備份檔內容有誤：${message()}")

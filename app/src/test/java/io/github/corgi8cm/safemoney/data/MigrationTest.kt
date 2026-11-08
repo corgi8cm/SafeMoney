@@ -7,11 +7,15 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import io.github.corgi8cm.safemoney.data.db.DEFAULT_QUICK_REASONS
+import io.github.corgi8cm.safemoney.data.db.MANUAL_MIGRATIONS
+import io.github.corgi8cm.safemoney.data.db.MIGRATION_2_3
 import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import java.time.Instant
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -50,7 +54,7 @@ class MigrationTest {
             ApplicationProvider.getApplicationContext(),
             SafeMoneyDatabase::class.java,
             name,
-        ).allowMainThreadQueries().build()
+        ).addMigrations(*MANUAL_MIGRATIONS).allowMainThreadQueries().build()
         try {
             val repo = SafeMoneyRepository(db)
             val goal = repo.observeGoals().first().single()
@@ -60,6 +64,50 @@ class MigrationTest {
             assertEquals(60, goal.saved)
             assertEquals("沒買飲料", repo.observeAllSavings().first().single().saving.reason)
             assertEquals(DEFAULT_QUICK_REASONS, repo.observeQuickReasons().first().map { it.text })
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun migrate2To3AddsUniqueUidsAndUpdatedAt() = runTest {
+        val day = LocalDate.of(2026, 11, 1).toEpochDay()
+        val created = 1_762_000_000_000L
+        helper.createDatabase(name, 2).apply {
+            execSQL(
+                "INSERT INTO goal (id, name, amount, purchaseDate, note, color, status, createdAt, completedAt, emoji) " +
+                    "VALUES (1, '大衣', 7000, $day, NULL, NULL, 'ACTIVE', $created, NULL, '🧥')"
+            )
+            execSQL(
+                "INSERT INTO goal (id, name, amount, purchaseDate, note, color, status, createdAt, completedAt, emoji) " +
+                    "VALUES (2, '耳機', 1000, $day, NULL, NULL, 'ACTIVE', $created, NULL, NULL)"
+            )
+            execSQL("INSERT INTO saving (id, reason, date, createdAt) VALUES (1, '沒買飲料', $day, $created)")
+            execSQL("INSERT INTO saving_allocation (savingId, goalId, amount) VALUES (1, 1, 60)")
+            execSQL("INSERT INTO quick_reason (text, position) VALUES ('沒買飲料', 0)")
+            close()
+        }
+
+        helper.runMigrationsAndValidate(name, 3, true, MIGRATION_2_3).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            SafeMoneyDatabase::class.java,
+            name,
+        ).addMigrations(*MANUAL_MIGRATIONS).allowMainThreadQueries().build()
+        try {
+            val repo = SafeMoneyRepository(db)
+            val goals = repo.observeGoals().first().map { it.goal }
+            assertEquals(listOf("大衣", "耳機"), goals.map { it.name })
+            assertTrue(goals.all { it.uid.isNotBlank() })
+            assertEquals(2, goals.map { it.uid }.toSet().size)
+            assertTrue(goals.all { it.updatedAt == Instant.ofEpochMilli(created) })
+            val saving = repo.observeAllSavings().first().single()
+            assertTrue(saving.saving.uid.isNotBlank())
+            assertEquals(Instant.ofEpochMilli(created), saving.saving.updatedAt)
+            assertEquals(60, saving.allocations.single().amount)
+            assertTrue(repo.observeQuickReasons().first().single().uid.isNotBlank())
+            assertEquals(emptyList<Any>(), repo.deletions())
         } finally {
             db.close()
         }
