@@ -54,6 +54,7 @@ import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.progress
 import io.github.corgi8cm.safemoney.domain.SavingForm
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
+import io.github.corgi8cm.safemoney.ui.celebration.CelebrationDialog
 import io.github.corgi8cm.safemoney.ui.common.DateField
 import io.github.corgi8cm.safemoney.ui.common.MoneyField
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
@@ -67,7 +68,18 @@ fun SavingEditScreen(
     val goals by viewModel.goals.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(viewModel.done) { if (viewModel.done) onBack() }
+    val celebration = viewModel.celebration
+    LaunchedEffect(viewModel.done, celebration.finished) {
+        if (viewModel.done || celebration.finished) onBack()
+    }
+    celebration.current?.let { ui ->
+        CelebrationDialog(
+            ui = ui,
+            busy = celebration.busy,
+            onTransfer = celebration::transfer,
+            onNext = celebration::next,
+        )
+    }
 
     Scaffold(
         topBar = {

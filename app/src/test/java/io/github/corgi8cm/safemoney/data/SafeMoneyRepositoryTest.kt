@@ -95,7 +95,7 @@ class SafeMoneyRepositoryTest {
         repo.addSaving("a", today, listOf(AllocationInput(goal, 40)))
         assertEquals(GoalStatus.ACTIVE, status(goal))
 
-        val second = repo.addSaving("b", today, listOf(AllocationInput(goal, 60)))
+        val second = repo.addSaving("b", today, listOf(AllocationInput(goal, 60))).savingId
         val completed = repo.observeGoal(goal).first()!!.goal
         assertEquals(GoalStatus.COMPLETED, completed.status)
         assertEquals(now, completed.completedAt)
@@ -125,7 +125,7 @@ class SafeMoneyRepositoryTest {
     fun updateSavingReplacesAllocationsAndRefreshesBothGoals() = runTest {
         val a = repo.addGoal("A", 100, today)
         val b = repo.addGoal("B", 100, today)
-        val saving = repo.addSaving("x", today, listOf(AllocationInput(a, 100)))
+        val saving = repo.addSaving("x", today, listOf(AllocationInput(a, 100))).savingId
         assertEquals(GoalStatus.COMPLETED, status(a))
 
         repo.updateSaving(saving, "y", today.minusDays(1), listOf(AllocationInput(b, 100)))
