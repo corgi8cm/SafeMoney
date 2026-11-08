@@ -25,6 +25,8 @@ class GoalEditViewModel(
     var amountText by mutableStateOf("")
     var purchaseDate by mutableStateOf(LocalDate.now())
     var note by mutableStateOf("")
+    var color by mutableStateOf<Int?>(null)
+    var emoji by mutableStateOf<String?>(null)
 
     var loaded by mutableStateOf(!isEdit)
         private set
@@ -50,6 +52,8 @@ class GoalEditViewModel(
                 amountText = goal.amount.toString()
                 purchaseDate = goal.purchaseDate
                 note = goal.note.orEmpty()
+                color = goal.color
+                emoji = goal.emoji
                 loaded = true
             }
         }
@@ -70,10 +74,17 @@ class GoalEditViewModel(
             try {
                 val existing = original
                 if (existing == null) {
-                    repository.addGoal(name, amount, purchaseDate, note)
+                    repository.addGoal(name, amount, purchaseDate, note, color = color, emoji = emoji)
                 } else {
                     repository.updateGoal(
-                        existing.copy(name = name, amount = amount, purchaseDate = purchaseDate, note = note)
+                        existing.copy(
+                            name = name,
+                            amount = amount,
+                            purchaseDate = purchaseDate,
+                            note = note,
+                            color = color,
+                            emoji = emoji,
+                        )
                     )
                 }
                 done = true

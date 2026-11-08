@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
@@ -62,6 +63,7 @@ private val BACKUP_MIME_TYPES = arrayOf("application/json", "text/plain", "appli
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onManageReasons: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val counts by viewModel.counts.collectAsStateWithLifecycle()
@@ -131,6 +133,15 @@ fun SettingsScreen(
             if (viewModel.busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
+            SectionTitle("記錄")
+            SettingRow(
+                icon = Icons.Filled.Edit,
+                title = "快捷原因",
+                subtitle = "新增、修改或刪除記一筆時的常用原因",
+                enabled = true,
+                onClick = onManageReasons,
+            )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionTitle("每日提醒")
             ListItem(
                 leadingContent = { Icon(Icons.Filled.Notifications, contentDescription = null) },

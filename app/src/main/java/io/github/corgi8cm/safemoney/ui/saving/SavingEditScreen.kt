@@ -19,7 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,9 +65,11 @@ import io.github.corgi8cm.safemoney.ui.common.formatMoney
 @Composable
 fun SavingEditScreen(
     onBack: () -> Unit,
+    onManageReasons: () -> Unit,
     viewModel: SavingEditViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val goals by viewModel.goals.collectAsStateWithLifecycle()
+    val quickReasons by viewModel.quickReasons.collectAsStateWithLifecycle()
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     val celebration = viewModel.celebration
@@ -127,9 +131,14 @@ fun SavingEditScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QUICK_REASONS.forEach { quick ->
+                quickReasons.forEach { quick ->
                     SuggestionChip(onClick = { viewModel.reason = quick }, label = { Text(quick) })
                 }
+                AssistChip(
+                    onClick = onManageReasons,
+                    label = { Text("管理") },
+                    leadingIcon = { Icon(Icons.Filled.Edit, contentDescription = null) },
+                )
             }
 
             DateField(date = viewModel.date, onDateChange = { viewModel.date = it }, label = "日期")

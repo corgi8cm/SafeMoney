@@ -67,6 +67,12 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+
+    // 遷移測試（MigrationTestHelper）從 assets 讀取已匯出的各版 schema。
+    // Robolectric 單元測試只會合併「被測 variant」的 assets，所以放在 debug（正式版不受影響）。
+    sourceSets {
+        getByName("debug").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 room {
@@ -101,4 +107,5 @@ dependencies {
     testImplementation(libs.androidx.test.core.ktx)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
 }

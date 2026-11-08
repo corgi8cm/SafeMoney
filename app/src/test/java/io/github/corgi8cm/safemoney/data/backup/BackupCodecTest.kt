@@ -19,7 +19,10 @@ class BackupCodecTest {
         exportedAt = now,
         appVersion = "0.4.0",
         goals = listOf(
-            Goal(1, "大衣", 7_000, LocalDate.of(2026, 10, 1), note = "冬天買的", status = GoalStatus.ACTIVE, createdAt = now),
+            Goal(
+                1, "大衣", 7_000, LocalDate.of(2026, 10, 1), note = "冬天買的",
+                status = GoalStatus.ACTIVE, createdAt = now, emoji = "🧥",
+            ),
             Goal(
                 3, "耳機", 100, LocalDate.of(2026, 9, 1), color = 0xFF2E7D5B.toInt(),
                 status = GoalStatus.COMPLETED, createdAt = now, completedAt = now,
@@ -31,6 +34,7 @@ class BackupCodecTest {
                 listOf(SavingAllocation(5, 1, 60), SavingAllocation(5, 3, 100)),
             ),
         ),
+        quickReasons = listOf("沒叫外送", "沒買飲料"),
     )
 
     private fun assertRejected(json: String, messagePart: String) {
@@ -60,6 +64,8 @@ class BackupCodecTest {
         val data = BackupCodec.decode(minimal())
         assertEquals(emptyList<Goal>(), data.goals)
         assertEquals(now, data.exportedAt)
+        // 舊版備份檔沒有快捷原因
+        assertEquals(null, data.quickReasons)
     }
 
     @Test

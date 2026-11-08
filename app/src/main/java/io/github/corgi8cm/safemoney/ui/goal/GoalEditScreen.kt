@@ -1,6 +1,17 @@
 package io.github.corgi8cm.safemoney.ui.goal
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,13 +33,23 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.DateField
+import io.github.corgi8cm.safemoney.ui.common.GOAL_COLORS
+import io.github.corgi8cm.safemoney.ui.common.GOAL_EMOJIS
+import io.github.corgi8cm.safemoney.ui.common.GoalAvatar
 import io.github.corgi8cm.safemoney.ui.common.MoneyField
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +105,13 @@ fun GoalEditScreen(
                 onDateChange = { viewModel.purchaseDate = it },
                 label = "購買日期",
             )
+            GoalStylePicker(
+                name = viewModel.name,
+                color = viewModel.color,
+                emoji = viewModel.emoji,
+                onColorChange = { viewModel.color = it },
+                onEmojiChange = { viewModel.emoji = it },
+            )
             OutlinedTextField(
                 value = viewModel.note,
                 onValueChange = { viewModel.note = it.take(200) },
@@ -101,4 +129,56 @@ fun GoalEditScreen(
             ) { Text("儲存") }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GoalStylePicker(
+    name: String,
+    color: Int?,
+    emoji: String?,
+    onColorChange: (Int?) -> Unit,
+    onEmojiChange: (String?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GoalAvatar(name = name.ifBlank { "?" }, emoji = emoji, color = color, size = 48.dp)
+            Spacer(Modifier.width(12.dp))
+            Text("顏色與圖示（選填）", style = MaterialTheme.typography.titleSmall)
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            StyleOption(selected = color == null, label = "預設顏色", onClick = { onColorChange(null) }) {
+                Text("預設", style = MaterialTheme.typography.labelSmall)
+            }
+            GOAL_COLORS.forEach { c ->
+                StyleOption(selected = color == c, label = "顏色", onClick = { onColorChange(c) }) {
+                    Box(Modifier.size(24.dp).clip(CircleShape).background(Color(c)))
+                }
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            StyleOption(selected = emoji == null, label = "不用圖示", onClick = { onEmojiChange(null) }) {
+                Text("無", style = MaterialTheme.typography.labelMedium)
+            }
+            GOAL_EMOJIS.forEach { e ->
+                StyleOption(selected = emoji == e, label = e, onClick = { onEmojiChange(e) }) {
+                    Text(e, fontSize = 20.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StyleOption(selected: Boolean, label: String, onClick: () -> Unit, content: @Composable () -> Unit) {
+    val border = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .border(if (selected) 3.dp else 1.dp, border, CircleShape)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = label },
+    ) { content() }
 }
