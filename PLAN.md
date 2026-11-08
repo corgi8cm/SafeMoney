@@ -81,6 +81,11 @@ SafeMoney 把每一筆「想省回來的花費」變成一個**回本目標**，
   - 刪除紀錄、目標、快捷原因後，畫面下方有「復原」可救回（原編號、原狀態）
   - 長按桌面圖示的「記一筆」捷徑（動態捷徑，測試版也能用）；小工具右上角「＋ 記一筆」
 - **多裝置同步**：用 Google 帳號登入，資料存在使用者自己 Google 雲端硬碟的 App 專用隱藏資料夾（appDataFolder），不經第三方伺服器
+  - ✅ 授權：Google Identity `AuthorizationClient`，只要 `drive.appdata` 權限；Android 用戶端以套件名稱 + SHA-1 對應（程式裡不放金鑰）
+  - ✅ 同步檔 `safemoney-sync.json`：目標、紀錄（分配用目標 uid）、快捷原因、墓碑
+  - ✅ 合併規則（`mergeSync`，兩邊算出同樣結果）：同 uid 取修改時間較新者；刪除時間 ≥ 修改時間 → 刪除；分配給已刪除目標的部分拿掉，空紀錄視為刪除；同名快捷原因留一個；墓碑保留一年
+  - ✅ 時機：開 App（超過 2 分鐘沒同步）、資料變動後 10 秒、設定頁「立即同步」；寫入前確認本機沒被改，否則重來
+  - 需要使用者自己在 Google Cloud 建立專案與 Android 用戶端（正式版、測試版各一個），見 README
 - **新版提醒**：GitHub 版檢查 GitHub Releases；Play 版改用 Google Play 應用程式內更新（Play 規定不可引導到 Play 以外更新）
   - ✅ product flavor `github` / `play`；github 版開 App 時每天最多查一次 `releases/latest`，首頁顯示「有新版本」，可在設定關閉或立即檢查
   - ✅ 測試版改用 repo 內固定的公開 debug 金鑰（Google 登入可註冊固定 SHA-1，也能直接覆蓋安裝）
@@ -234,7 +239,7 @@ SafeMoney/
 | **M5d 主畫面小工具** ✅ | Widget 顯示整體或單一目標進度 | `v0.6.0` |
 | **M6 補齊與順手** ✅ | 自訂快捷原因、目標顏色/圖示、刪除可復原、所有紀錄頁（依月份/原因篩選）、App 捷徑與小工具「記一筆」、新 App 圖示 | `v0.7.0` |
 | **M7 資料改版（同步地基）** ✅ | 每筆資料加全域唯一 ID（UUID）、修改時間、刪除標記（tombstone）；Room migration 與遷移測試；備份檔第 2 版（仍可讀第 1 版）；本機錯誤紀錄可匯出 | `v0.8.0` |
-| **M8 多裝置同步、新版提醒** | Google 登入 + Drive appDataFolder；變更後與開啟 App 時同步，逐筆以最後修改時間為準；GitHub / Play 兩個 product flavor，GitHub 版檢查新版 | `v0.9.0` |
+| **M8 多裝置同步、新版提醒** ✅ | Google 登入 + Drive appDataFolder；變更後與開啟 App 時同步，逐筆以最後修改時間為準；GitHub / Play 兩個 product flavor，GitHub 版檢查新版 | `v0.9.0` |
 | **M9 上架準備** | 升級 Gradle/AGP/Kotlin 等並符合 Play 當時的 targetSdk 要求；R8 瘦身；CI 產出 AAB；Compose UI 測試；無障礙與大字體檢查；新手說明；隱私權說明頁（GitHub Pages）；資料安全表單內容、商店素材、上架步驟清單 | `v0.10.0` |
 | **v1.0 正式版** | 修正前面發現的問題、更新說明文件；承諾之後版本相容舊資料與舊備份檔 | `v1.0.0` |
 

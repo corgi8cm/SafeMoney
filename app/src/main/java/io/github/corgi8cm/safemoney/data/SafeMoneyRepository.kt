@@ -16,6 +16,13 @@ import io.github.corgi8cm.safemoney.domain.AllocationInput
 import io.github.corgi8cm.safemoney.domain.Allocations
 import io.github.corgi8cm.safemoney.domain.NearestGoal
 import io.github.corgi8cm.safemoney.domain.Summary
+import io.github.corgi8cm.safemoney.sync.SyncAllocation
+import io.github.corgi8cm.safemoney.sync.SyncDeletion
+import io.github.corgi8cm.safemoney.sync.SyncDoc
+import io.github.corgi8cm.safemoney.sync.SyncGoal
+import io.github.corgi8cm.safemoney.sync.SyncReason
+import io.github.corgi8cm.safemoney.sync.SyncSaving
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.Clock
@@ -373,6 +380,129 @@ class SafeMoneyRepository(
     /** 刪除紀錄（墓碑），同步時告訴其他裝置哪些資料被刪了。 */
     suspend fun deletions(): List<Deletion> = deletionDao.getAll()
 
+    /** 這支手機目前的資料，轉成同步檔的格式（用 uid 互相對應）。 */
+    suspend fun exportSyncDoc(): SyncDoc = db.withTransaction { readSyncDoc() }
+
+    private suspend fun readSyncDoc(): SyncDoc {
+        val goals = goalDao.getAll()
+        val uidOf = goals.associate { it.id to it.uid }
+        return SyncDoc(
+            goals = goals.map { g ->
+                SyncGoal(
+                    uid = g.uid,
+                    name = g.name,
+                    amount = g.amount,
+                    purchaseDate = g.purchaseDate.toString(),
+                    note = g.note,
+                    color = g.color,
+                    emoji = g.emoji,
+                    archived = g.status == GoalStatus.ARCHIVED,
+                    createdAt = g.createdAt.toEpochMilli(),
+                    completedAt = g.completedAt?.toEpochMilli(),
+                    updatedAt = g.updatedAt.toEpochMilli(),
+                )
+            },
+            savings = savingDao.getAllWithAllocations().map { s ->
+                SyncSaving(
+                    uid = s.saving.uid,
+                    reason = s.saving.reason,
+                    date = s.saving.date.toString(),
+                    createdAt = s.saving.createdAt.toEpochMilli(),
+                    updatedAt = s.saving.updatedAt.toEpochMilli(),
+                    allocations = s.allocations.mapNotNull { a -> uidOf[a.goalId]?.let { SyncAllocation(it, a.amount) } },
+                )
+            },
+            quickReasons = reasonDao.getAll().map { SyncReason(it.uid, it.text, it.position, it.updatedAt.toEpochMilli()) },
+            deletions = deletionDao.getAll().map { SyncDeletion(it.uid, it.entity, it.deletedAt.toEpochMilli()) },
+        ).normalized()
+    }
+
+    /**
+     * 把合併後的同步結果寫進這支手機（保留本機 id，用 uid 對應），不會產生新的墓碑。
+     * [expected] 是合併前讀到的本機資料；如果期間使用者又改了東西，就不寫入並回傳 false，
+     * 讓同步重新來一次，避免蓋掉剛剛的修改。
+     */
+    suspend fun applySyncDoc(doc: SyncDoc, expected: SyncDoc): Boolean = db.withTransaction {
+        if (readSyncDoc() != expected.normalized()) return@withTransaction false
+
+        val keepGoals = doc.goals.map { it.uid }.toSet()
+        val keepSavings = doc.savings.map { it.uid }.toSet()
+        // 先刪掉不在結果裡的（目標刪除時分配會 CASCADE 一起刪）
+        savingDao.getAllWithAllocations().filter { it.saving.uid !in keepSavings }.forEach { savingDao.deleteSaving(it.saving.id) }
+        goalDao.getAll().filter { it.uid !in keepGoals }.forEach { goalDao.delete(it) }
+
+        val localGoals = goalDao.getAll().associateBy { it.uid }
+        val goalIds = HashMap<String, Long>()
+        for (g in doc.goals) {
+            val existing = localGoals[g.uid]
+            val status = when {
+                g.archived -> GoalStatus.ARCHIVED
+                existing != null && existing.status != GoalStatus.ARCHIVED -> existing.status
+                else -> GoalStatus.ACTIVE
+            }
+            val entity = Goal(
+                id = existing?.id ?: 0,
+                name = g.name,
+                amount = g.amount,
+                purchaseDate = LocalDate.parse(g.purchaseDate),
+                note = g.note,
+                color = g.color,
+                status = status,
+                createdAt = Instant.ofEpochMilli(g.createdAt),
+                completedAt = g.completedAt?.let(Instant::ofEpochMilli),
+                emoji = g.emoji,
+                uid = g.uid,
+                updatedAt = Instant.ofEpochMilli(g.updatedAt),
+            )
+            goalIds[g.uid] = if (existing == null) goalDao.insert(entity) else entity.id.also { goalDao.update(entity) }
+        }
+
+        val localSavings = savingDao.getAllWithAllocations().associateBy { it.saving.uid }
+        for (s in doc.savings) {
+            val existing = localSavings[s.uid]
+            val entity = Saving(
+                id = existing?.saving?.id ?: 0,
+                reason = s.reason,
+                date = LocalDate.parse(s.date),
+                createdAt = Instant.ofEpochMilli(s.createdAt),
+                uid = s.uid,
+                updatedAt = Instant.ofEpochMilli(s.updatedAt),
+            )
+            val savingId = if (existing == null) {
+                savingDao.insertSaving(entity)
+            } else {
+                savingDao.updateSaving(entity)
+                savingDao.deleteAllocations(entity.id)
+                entity.id
+            }
+            savingDao.insertAllocations(
+                s.allocations.mapNotNull { a -> goalIds[a.goalUid]?.let { SavingAllocation(savingId, it, a.amount) } }
+            )
+        }
+
+        // 快捷原因：整批換掉（保留原本的 id），避免兩個原因互換名稱時撞到「名稱不可重複」
+        val localReasons = reasonDao.getAll().associateBy { it.uid }
+        reasonDao.deleteAll()
+        reasonDao.insertAll(
+            doc.quickReasons.map { r ->
+                QuickReason(
+                    id = localReasons[r.uid]?.id ?: 0,
+                    text = r.text,
+                    position = r.position,
+                    uid = r.uid,
+                    updatedAt = Instant.ofEpochMilli(r.updatedAt),
+                )
+            }
+        )
+
+        val localDeletions = deletionDao.getAll().map { it.uid }
+        clearDeletions(localDeletions)
+        deletionDao.insertAll(doc.deletions.map { Deletion(it.uid, it.entity, Instant.ofEpochMilli(it.deletedAt)) })
+
+        refreshCompletion(goalIds.values)
+        true
+    }
+
     // ---- 內部 ----
 
     /** 資料又回來了（復原、還原），移除它們的刪除紀錄。分批避免超過 SQLite 參數上限。 */
@@ -402,7 +532,8 @@ class SafeMoneyRepository(
             val goal = row.goal
             val reached = row.saved >= goal.amount
             if (goal.status == GoalStatus.ACTIVE && reached) {
-                goalDao.update(goal.copy(status = GoalStatus.COMPLETED, completedAt = clock.instant()))
+                // 同步來的目標可能已帶著另一支手機的回本時間，沿用它，兩邊才一致
+                goalDao.update(goal.copy(status = GoalStatus.COMPLETED, completedAt = goal.completedAt ?: clock.instant()))
                 newlyCompleted += id
             } else if (goal.status == GoalStatus.COMPLETED && !reached) {
                 goalDao.update(goal.copy(status = GoalStatus.ACTIVE, completedAt = null))

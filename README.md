@@ -24,6 +24,19 @@ GitHub Actions 的 **Build** 也會產出 `safemoney-debug-…`（`app-github-de
 
 本專案不在本地編譯，所有 APK 都由 GitHub Actions 產生。
 
+## 雲端同步（Google 雲端硬碟）
+
+設定 → 雲端同步 →「用 Google 帳號開始同步」。資料存在你自己 Google 雲端硬碟裡 App 專用的隱藏資料夾，
+App 只能看到自己建立的那個檔案；多支手機登入同一個帳號就會自動同步。
+
+自己編譯或 fork 這個專案時，需要在 [Google Cloud Console](https://console.cloud.google.com/) 建立：
+
+1. 啟用 **Google Drive API**
+2. OAuth 同意畫面（External），權限 `https://www.googleapis.com/auth/drive.appdata`
+3. 兩個 **Android** 用戶端：
+   - 正式版 `io.github.corgi8cm.safemoney`：正式簽章金鑰的 SHA-1
+   - 測試版 `io.github.corgi8cm.safemoney.debug`：`app/debug.keystore` 的 SHA-1（`25:D3:5C:E7:94:BA:2D:90:A7:21:DE:80:B5:05:BE:66:C8:25:EB:E9`）
+
 ## 發佈新版本
 
 1. 在 PR 中把 `app/build.gradle.kts` 的 `versionCode` +1、`versionName` 改成新版號，合併到 `main`

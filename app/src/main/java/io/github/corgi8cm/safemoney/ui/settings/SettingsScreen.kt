@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -56,6 +58,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.display
+import io.github.corgi8cm.safemoney.ui.common.localDateTimeText
 import io.github.corgi8cm.safemoney.ui.common.localDate
 
 private val BACKUP_MIME_TYPES = arrayOf("application/json", "text/plain", "application/octet-stream")
@@ -104,6 +107,18 @@ fun SettingsScreen(
     val crashLogLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain"),
     ) { uri -> uri?.let(viewModel::exportCrashLog) }
+    val syncStatus by viewModel.sync.collectAsStateWithLifecycle()
+    var confirmDeleteCloud by rememberSaveable { mutableStateOf(false) }
+    val consentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result -> viewModel.onConsentResult(result.resultCode == android.app.Activity.RESULT_OK, result.data) }
+    val consentRequest = viewModel.consentRequest
+    LaunchedEffect(consentRequest) {
+        if (consentRequest != null) {
+            viewModel.consentLaunched()
+            consentLauncher.launch(IntentSenderRequest.Builder(consentRequest).build())
+        }
+    }
     val restoreLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri -> uri?.let(viewModel::pickRestore) }
@@ -137,6 +152,57 @@ fun SettingsScreen(
             if (viewModel.busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
+            SectionTitle("雲端同步")
+            Text(
+                "用 Google 帳號把資料同步到你自己的 Google 雲端硬碟（App 專用的隱藏資料夾，看不到你其他的檔案）。" +
+                    "多支手機登入同一個帳號，資料會自動一致。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp),
+            )
+            if (!syncStatus.enabled) {
+                SettingRow(
+                    icon = Icons.Filled.Refresh,
+                    title = "用 Google 帳號開始同步",
+                    subtitle = "第一次會請你選擇帳號並同意",
+                    enabled = !viewModel.busy,
+                    onClick = viewModel::connectSync,
+                )
+            } else {
+                if (syncStatus.needsConsent) {
+                    SettingRow(
+                        icon = Icons.Filled.Refresh,
+                        title = "重新授權 Google 雲端硬碟",
+                        subtitle = "授權已過期或被收回，同步暫停中",
+                        enabled = !viewModel.busy,
+                        onClick = viewModel::connectSync,
+                    )
+                }
+                val last = syncStatus.lastSyncAt
+                SettingRow(
+                    icon = Icons.Filled.Refresh,
+                    title = if (syncStatus.running) "同步中…" else "立即同步",
+                    subtitle = syncStatus.error
+                        ?: if (last == null) "還沒同步過" else "上次同步：${last.localDateTimeText()}",
+                    enabled = !viewModel.busy && !syncStatus.running,
+                    onClick = viewModel::syncNow,
+                )
+                SettingRow(
+                    icon = Icons.Filled.Close,
+                    title = "停止同步",
+                    subtitle = "雲端的資料會保留，之後可以再開啟",
+                    enabled = !viewModel.busy,
+                    onClick = viewModel::disableSync,
+                )
+            }
+            SettingRow(
+                icon = Icons.Filled.Delete,
+                title = "刪除雲端資料",
+                subtitle = "刪除 Google 雲端硬碟上的同步檔（手機上的資料不受影響）",
+                enabled = !viewModel.busy && syncStatus.enabled,
+                onClick = { confirmDeleteCloud = true },
+            )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionTitle("記錄")
             SettingRow(
                 icon = Icons.Filled.Edit,
@@ -249,6 +315,26 @@ fun SettingsScreen(
                 )
             }
         }
+    }
+
+    if (confirmDeleteCloud) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteCloud = false },
+            title = { Text("刪除雲端資料？") },
+            text = {
+                Text(
+                    "會刪除 Google 雲端硬碟上的同步檔並停止同步。這支手機上的資料不受影響；" +
+                        "其他手機若還開著同步，下次同步時會再上傳它們的資料。",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteCloud = false
+                    viewModel.deleteCloudData()
+                }) { Text("刪除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDeleteCloud = false }) { Text("取消") } },
+        )
     }
 
     if (pickTime) {
