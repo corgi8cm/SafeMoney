@@ -1,0 +1,21 @@
+# Gradle / build output
+.gradle/
+build/
+.kotlin/
+
+# Local config
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Signing keys - never commit
+*.jks
+*.keystore
+keystore.properties
