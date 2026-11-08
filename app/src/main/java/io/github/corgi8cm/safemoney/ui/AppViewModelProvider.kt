@@ -11,6 +11,7 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalDetailViewModel
 import io.github.corgi8cm.safemoney.ui.goal.GoalEditViewModel
 import io.github.corgi8cm.safemoney.ui.home.HomeViewModel
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditViewModel
+import io.github.corgi8cm.safemoney.ui.stats.StatsViewModel
 
 /** 所有 ViewModel 的建構方式（手動相依注入）。導覽參數透過 SavedStateHandle 傳入。 */
 object AppViewModelProvider {
@@ -19,6 +20,7 @@ object AppViewModelProvider {
         initializer { GoalEditViewModel(createSavedStateHandle(), repository()) }
         initializer { GoalDetailViewModel(createSavedStateHandle(), repository()) }
         initializer { SavingEditViewModel(createSavedStateHandle(), repository()) }
+        initializer { StatsViewModel(repository()) }
     }
 }
 
