@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.LocalContext
 import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -32,6 +33,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import io.github.corgi8cm.safemoney.MainActivity
 import io.github.corgi8cm.safemoney.SafeMoneyApp
+import io.github.corgi8cm.safemoney.ui.QuickActions
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
 import io.github.corgi8cm.safemoney.ui.common.percentText
 
@@ -73,10 +75,24 @@ private fun WidgetContent(state: WidgetState) {
             .padding(14.dp)
             .clickable(actionStartActivity<MainActivity>()),
     ) {
-        Text(
-            "省回來",
-            style = TextStyle(color = colors.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = GlanceModifier.fillMaxWidth()) {
+            Text(
+                "省回來",
+                style = TextStyle(color = colors.primary, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                modifier = GlanceModifier.defaultWeight(),
+            )
+            if (state.activeGoals.isNotEmpty()) {
+                Text(
+                    "＋ 記一筆",
+                    style = TextStyle(color = colors.onPrimaryContainer, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                    modifier = GlanceModifier
+                        .background(colors.primaryContainer)
+                        .cornerRadius(12.dp)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .clickable(actionStartActivity(QuickActions.newSavingIntent(LocalContext.current))),
+                )
+            }
+        }
         Spacer(GlanceModifier.height(4.dp))
 
         val progress = state.summary.progress

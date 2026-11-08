@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -58,6 +59,7 @@ import io.github.corgi8cm.safemoney.domain.SavingForm
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.celebration.CelebrationDialog
 import io.github.corgi8cm.safemoney.ui.common.DateField
+import io.github.corgi8cm.safemoney.ui.common.LocalAppMessenger
 import io.github.corgi8cm.safemoney.ui.common.MoneyField
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
 
@@ -70,6 +72,7 @@ fun SavingEditScreen(
 ) {
     val goals by viewModel.goals.collectAsStateWithLifecycle()
     val quickReasons by viewModel.quickReasons.collectAsStateWithLifecycle()
+    val messenger = LocalAppMessenger.current
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
 
     val celebration = viewModel.celebration
@@ -86,6 +89,7 @@ fun SavingEditScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(messenger.hostState) },
         topBar = {
             TopAppBar(
                 title = { Text(if (viewModel.isEdit) "編輯省錢紀錄" else "記一筆省錢") },
@@ -179,11 +183,11 @@ fun SavingEditScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("刪除這筆紀錄？") },
-            text = { Text("分給各目標的金額都會一起扣掉，無法復原。") },
+            text = { Text("分給各目標的金額都會一起扣掉。刪除後可以馬上按「復原」救回來。") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    viewModel.delete()
+                    viewModel.delete(messenger::showUndo)
                 }) { Text("刪除", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {

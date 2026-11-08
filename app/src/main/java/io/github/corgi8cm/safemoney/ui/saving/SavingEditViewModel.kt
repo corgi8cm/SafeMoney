@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -166,13 +167,19 @@ class SavingEditViewModel(
         }
     }
 
-    fun delete() {
+    /** 刪除後呼叫 [onDeleted]（訊息與復原動作），由畫面顯示「復原」按鈕。 */
+    fun delete(onDeleted: (message: String, undo: suspend () -> Unit) -> Unit) {
         val id = savingId ?: return
         if (busy) return
         busy = true
-        viewModelScope.launch {
+        val repo = repository
+        viewModelScope.launch(NonCancellable) {
             try {
-                repository.deleteSaving(id)
+                val deleted = repo.deleteSaving(id)
+                if (deleted != null) {
+                    val what = deleted.saving.reason.ifBlank { "這筆紀錄" }
+                    onDeleted("已刪除「$what」") { repo.undoDeleteSaving(deleted) }
+                }
                 done = true
             } finally {
                 busy = false

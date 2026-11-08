@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -27,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,6 +51,7 @@ import io.github.corgi8cm.safemoney.data.db.progress
 import io.github.corgi8cm.safemoney.domain.Summary
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.GoalAvatar
+import io.github.corgi8cm.safemoney.ui.common.LocalAppMessenger
 import io.github.corgi8cm.safemoney.ui.common.GoalProgressBar
 import io.github.corgi8cm.safemoney.ui.common.accentColor
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
@@ -62,6 +65,7 @@ fun HomeScreen(
     onAddSaving: () -> Unit,
     onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenRecords: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -72,11 +76,13 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("省回來") },
                 actions = {
+                    IconButton(onClick = onOpenRecords) { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "所有紀錄") }
                     IconButton(onClick = onAddGoal) { Icon(Icons.Filled.Add, contentDescription = "新增目標") }
                     IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, contentDescription = "設定") }
                 },
             )
         },
+        snackbarHost = { SnackbarHost(LocalAppMessenger.current.hostState) },
         floatingActionButton = {
             if (state.active.isNotEmpty()) {
                 ExtendedFloatingActionButton(

@@ -29,6 +29,10 @@ interface SavingDao {
     @Query("SELECT * FROM saving ORDER BY id")
     suspend fun getAllWithAllocations(): List<SavingWithAllocations>
 
+    @Transaction
+    @Query("SELECT * FROM saving WHERE id IN (SELECT savingId FROM saving_allocation WHERE goalId = :goalId)")
+    suspend fun getForGoal(goalId: Long): List<SavingWithAllocations>
+
     @Query("DELETE FROM saving WHERE id = :id")
     suspend fun deleteSaving(id: Long)
 
