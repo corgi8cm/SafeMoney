@@ -37,6 +37,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -63,6 +64,7 @@ import io.github.corgi8cm.safemoney.domain.Forecast
 import java.time.LocalDate
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.GoalAvatar
+import io.github.corgi8cm.safemoney.ui.common.LocalAppMessenger
 import io.github.corgi8cm.safemoney.ui.common.GoalProgressBar
 import io.github.corgi8cm.safemoney.ui.common.accentColor
 import io.github.corgi8cm.safemoney.ui.common.describe
@@ -94,7 +96,9 @@ fun GoalDetailScreen(
     }
 
     val row = state.goal
+    val messenger = LocalAppMessenger.current
     Scaffold(
+        snackbarHost = { SnackbarHost(messenger.hostState) },
         topBar = {
             TopAppBar(
                 title = { Text(row?.goal?.name.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -208,11 +212,11 @@ fun GoalDetailScreen(
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("刪除「${row.goal.name}」？") },
-            text = { Text("這個目標與分給它的省錢金額都會刪除，無法復原。\n拆分給其他目標的部分會保留。") },
+            text = { Text("這個目標與分給它的省錢金額都會刪除，拆分給其他目標的部分會保留。\n刪除後可以馬上按「復原」救回來。") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
-                    viewModel.delete()
+                    viewModel.delete(messenger::showUndo)
                 }) { Text("刪除", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {

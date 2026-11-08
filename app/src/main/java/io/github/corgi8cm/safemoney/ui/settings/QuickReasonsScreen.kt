@@ -26,7 +26,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -49,6 +48,7 @@ import io.github.corgi8cm.safemoney.data.MAX_REASON_LENGTH
 import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.db.QuickReason
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
+import io.github.corgi8cm.safemoney.ui.common.LocalAppMessenger
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -70,9 +70,10 @@ class QuickReasonsViewModel(private val repository: SafeMoneyRepository) : ViewM
 
     fun rename(id: Long, text: String, onDone: () -> Unit) = launchSafely { repository.renameQuickReason(id, text); onDone() }
 
-    fun delete(reason: QuickReason) = launchSafely {
-        repository.deleteQuickReason(reason.id)
-        message = "已刪除「${reason.text}」"
+    fun delete(reason: QuickReason, onDeleted: (message: String, undo: suspend () -> Unit) -> Unit) = launchSafely {
+        val repo = repository
+        repo.deleteQuickReason(reason.id)
+        onDeleted("已刪除「${reason.text}」") { repo.restoreQuickReason(reason) }
     }
 
     fun reset() = launchSafely {
@@ -98,7 +99,7 @@ fun QuickReasonsScreen(
     viewModel: QuickReasonsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val reasons by viewModel.reasons.collectAsStateWithLifecycle()
-    val snackbar = remember { SnackbarHostState() }
+    val messenger = LocalAppMessenger.current
     var newText by rememberSaveable { mutableStateOf("") }
     var editing by remember { mutableStateOf<QuickReason?>(null) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
@@ -106,7 +107,7 @@ fun QuickReasonsScreen(
     val message = viewModel.message
     LaunchedEffect(message) {
         if (message != null) {
-            snackbar.showSnackbar(message)
+            messenger.show(message)
             viewModel.messageShown()
         }
     }
@@ -127,7 +128,7 @@ fun QuickReasonsScreen(
                 },
             )
         },
-        snackbarHost = { SnackbarHost(snackbar) },
+        snackbarHost = { SnackbarHost(messenger.hostState) },
     ) { padding ->
         val list = reasons ?: return@Scaffold
         LazyColumn(
@@ -179,7 +180,7 @@ fun QuickReasonsScreen(
                             IconButton(onClick = { editing = reason }) {
                                 Icon(Icons.Filled.Edit, contentDescription = "修改「${reason.text}」")
                             }
-                            IconButton(onClick = { viewModel.delete(reason) }) {
+                            IconButton(onClick = { viewModel.delete(reason, messenger::showUndo) }) {
                                 Icon(Icons.Filled.Delete, contentDescription = "刪除「${reason.text}」")
                             }
                         }

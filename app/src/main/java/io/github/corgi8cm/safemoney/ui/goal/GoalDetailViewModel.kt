@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -80,8 +81,14 @@ class GoalDetailViewModel(
         }
     }
 
-    fun delete() {
-        viewModelScope.launch { repository.deleteGoal(goalId) }
+    /** 刪除後呼叫 [onDeleted]（訊息與復原動作），由畫面顯示「復原」按鈕。 */
+    fun delete(onDeleted: (message: String, undo: suspend () -> Unit) -> Unit) {
+        val repo = repository
+        // 刪除後畫面會立刻離開、ViewModel 跟著結束；NonCancellable 確保還是會送出「復原」
+        viewModelScope.launch(NonCancellable) {
+            val deleted = repo.deleteGoal(goalId) ?: return@launch
+            onDeleted("已刪除「${deleted.goal.name}」") { repo.undoDeleteGoal(deleted) }
+        }
     }
 
     fun transferOverflow(toGoalId: Long) {

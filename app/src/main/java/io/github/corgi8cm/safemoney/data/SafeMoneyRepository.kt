@@ -120,14 +120,33 @@ class SafeMoneyRepository(
         }
     }
 
-    /** 刪除目標及其分配；因此變成沒有任何分配的省錢紀錄也會一併刪除。 */
-    suspend fun deleteGoal(goalId: Long) {
+    /**
+     * 刪除目標及其分配；因此變成沒有任何分配的省錢紀錄也會一併刪除。
+     * @return 刪除前的內容，給「復原」用；目標不存在時為 null
+     */
+    suspend fun deleteGoal(goalId: Long): DeletedGoal? = db.withTransaction {
+        val goal = goalDao.getById(goalId) ?: return@withTransaction null
+        val savings = savingDao.getForGoal(goalId)
+        goalDao.delete(goal)
+        savingDao.deleteOrphanSavings()
+        DeletedGoal(goal, savings)
+    }
+
+    /** 復原 [deleteGoal]：放回目標（原編號、原狀態），以及它在各紀錄中的分配。 */
+    suspend fun undoDeleteGoal(deleted: DeletedGoal) {
         db.withTransaction {
-            val goal = goalDao.getById(goalId)
-            if (goal != null) {
-                goalDao.delete(goal)
-                savingDao.deleteOrphanSavings()
+            goalDao.insert(deleted.goal)
+            for (item in deleted.savings) {
+                if (savingDao.getWithAllocations(item.saving.id) == null) {
+                    // 整筆紀錄當時跟著被刪掉了，原樣放回
+                    savingDao.insertSaving(item.saving)
+                    savingDao.insertAllocations(item.allocations.filter { goalDao.getById(it.goalId) != null })
+                } else {
+                    // 拆分的紀錄還在，只放回分給這個目標的部分
+                    savingDao.insertAllocations(item.allocations.filter { it.goalId == deleted.goal.id })
+                }
             }
+            refreshCompletion(listOf(deleted.goal.id))
         }
     }
 
@@ -199,13 +218,22 @@ class SafeMoneyRepository(
         TransferResult(transferred = overflow, completedGoalIds = refreshCompletion(listOf(fromGoalId, toGoalId)))
     }
 
-    suspend fun deleteSaving(savingId: Long) {
+    /** @return 刪除前的紀錄，給「復原」用；不存在時為 null */
+    suspend fun deleteSaving(savingId: Long): SavingWithAllocations? = db.withTransaction {
+        val existing = savingDao.getWithAllocations(savingId) ?: return@withTransaction null
+        savingDao.deleteSaving(savingId) // 分配會因 CASCADE 一併刪除
+        refreshCompletion(existing.allocations.map { it.goalId })
+        existing
+    }
+
+    /** 復原 [deleteSaving]（原編號）。期間被刪掉的目標就不再分配給它；全部目標都不在時不放回。 */
+    suspend fun undoDeleteSaving(deleted: SavingWithAllocations) {
         db.withTransaction {
-            val existing = savingDao.getWithAllocations(savingId)
-            if (existing != null) {
-                savingDao.deleteSaving(savingId) // 分配會因 CASCADE 一併刪除
-                refreshCompletion(existing.allocations.map { it.goalId })
-            }
+            val allocations = deleted.allocations.filter { goalDao.getById(it.goalId) != null }
+            if (allocations.isEmpty() || savingDao.getWithAllocations(deleted.saving.id) != null) return@withTransaction
+            savingDao.insertSaving(deleted.saving)
+            savingDao.insertAllocations(allocations)
+            refreshCompletion(allocations.map { it.goalId })
         }
     }
 
@@ -237,6 +265,13 @@ class SafeMoneyRepository(
     }
 
     suspend fun deleteQuickReason(id: Long) = reasonDao.delete(id)
+
+    /** 復原刪除的快捷原因；期間又新增了同名的就不重複放回。 */
+    suspend fun restoreQuickReason(reason: QuickReason) {
+        db.withTransaction {
+            if (reasonDao.getByText(reason.text) == null) reasonDao.insert(reason)
+        }
+    }
 
     /** 換回預設的快捷原因（已經記下的紀錄不受影響）。 */
     suspend fun resetQuickReasons() = replaceQuickReasons(DEFAULT_QUICK_REASONS)
@@ -339,6 +374,9 @@ const val USAGE_WINDOW_DAYS = 90L
 
 /** 跟記錄頁的原因欄位上限一致。 */
 const val MAX_REASON_LENGTH = 40
+
+/** 被刪除的目標，以及刪除前分配給它的所有紀錄（含當時完整的分配）。 */
+data class DeletedGoal(val goal: Goal, val savings: List<SavingWithAllocations>)
 
 data class SaveResult(val savingId: Long, val completedGoalIds: List<Long>)
 

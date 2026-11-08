@@ -11,6 +11,7 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalDetailViewModel
 import io.github.corgi8cm.safemoney.ui.goal.GoalEditViewModel
 import io.github.corgi8cm.safemoney.ui.home.HomeViewModel
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditViewModel
+import io.github.corgi8cm.safemoney.ui.records.RecordsViewModel
 import io.github.corgi8cm.safemoney.ui.settings.QuickReasonsViewModel
 import io.github.corgi8cm.safemoney.ui.settings.SettingsViewModel
 import io.github.corgi8cm.safemoney.ui.stats.StatsViewModel
@@ -25,6 +26,7 @@ object AppViewModelProvider {
         initializer { StatsViewModel(repository()) }
         initializer { SettingsViewModel(app(), repository()) }
         initializer { QuickReasonsViewModel(repository()) }
+        initializer { RecordsViewModel(repository()) }
     }
 }
 

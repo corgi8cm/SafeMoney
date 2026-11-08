@@ -15,8 +15,8 @@ android {
         applicationId = "io.github.corgi8cm.safemoney"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.6.0"
+        versionCode = 8
+        versionName = "0.7.0"
     }
 
     // 正式簽章：只在 CI 的 release workflow 透過環境變數提供（金鑰放在 GitHub Secrets，不進 git）。
