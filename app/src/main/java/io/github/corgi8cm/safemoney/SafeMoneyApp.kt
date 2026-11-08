@@ -5,9 +5,15 @@ import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import io.github.corgi8cm.safemoney.reminder.ReminderScheduler
 import io.github.corgi8cm.safemoney.reminder.ReminderSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /** 手動相依注入：整個 App 共用一個 repository 與提醒設定。 */
 class SafeMoneyApp : Application() {
+    /** 跟著 App 程序存活的背景工作（例如更新小工具）。 */
+    val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     val repository: SafeMoneyRepository by lazy {
         SafeMoneyRepository(SafeMoneyDatabase.get(this))
     }

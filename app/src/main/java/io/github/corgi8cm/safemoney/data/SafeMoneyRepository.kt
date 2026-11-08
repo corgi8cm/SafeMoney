@@ -44,15 +44,10 @@ class SafeMoneyRepository(
 
     suspend fun getSaving(id: Long): SavingWithAllocations? = savingDao.getWithAllocations(id)
 
-    fun observeSummary(): Flow<Summary> = observeGoals().map { goals ->
-        val visible = goals.filter { it.goal.status != GoalStatus.ARCHIVED }
-        Summary(
-            goalCount = visible.size,
-            completedCount = visible.count { it.goal.status == GoalStatus.COMPLETED },
-            totalAmount = visible.sumOf { it.goal.amount },
-            totalSaved = visible.sumOf { it.saved },
-        )
-    }
+    fun observeSummary(): Flow<Summary> = observeGoals().map(::summarize)
+
+    /** 目前所有目標（給主畫面小工具一次性讀取）。 */
+    suspend fun goalsSnapshot(): List<GoalWithSaved> = goalDao.getAllWithSaved()
 
     /** 今天是否已有省錢紀錄（給每日提醒判斷要不要打擾）。 */
     suspend fun hasSavingOn(date: LocalDate): Boolean = savingDao.countOnDate(date) > 0
@@ -268,6 +263,17 @@ class SafeMoneyRepository(
         }
         return newlyCompleted
     }
+}
+
+/** 未封存目標的總覽。 */
+fun summarize(goals: List<GoalWithSaved>): Summary {
+    val visible = goals.filter { it.goal.status != GoalStatus.ARCHIVED }
+    return Summary(
+        goalCount = visible.size,
+        completedCount = visible.count { it.goal.status == GoalStatus.COMPLETED },
+        totalAmount = visible.sumOf { it.goal.amount },
+        totalSaved = visible.sumOf { it.saved },
+    )
 }
 
 data class SaveResult(val savingId: Long, val completedGoalIds: List<Long>)
