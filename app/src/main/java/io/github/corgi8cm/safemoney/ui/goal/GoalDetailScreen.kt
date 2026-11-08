@@ -59,8 +59,11 @@ import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
 import io.github.corgi8cm.safemoney.data.db.progress
 import io.github.corgi8cm.safemoney.data.db.total
+import io.github.corgi8cm.safemoney.domain.Forecast
+import java.time.LocalDate
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.GoalProgressBar
+import io.github.corgi8cm.safemoney.ui.common.describe
 import io.github.corgi8cm.safemoney.ui.common.display
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
 import io.github.corgi8cm.safemoney.ui.common.percentText
@@ -146,6 +149,8 @@ fun GoalDetailScreen(
             item(key = "header") {
                 ProgressHeader(
                     row = row,
+                    forecast = state.forecast,
+                    today = state.today,
                     canTransfer = state.transferTargets.isNotEmpty() && !viewModel.transferring,
                     onTransferClick = { showTransfer = true },
                 )
@@ -266,7 +271,13 @@ private fun TransferDialog(
 }
 
 @Composable
-private fun ProgressHeader(row: GoalWithSaved, canTransfer: Boolean, onTransferClick: () -> Unit) {
+private fun ProgressHeader(
+    row: GoalWithSaved,
+    forecast: Forecast?,
+    today: LocalDate,
+    canTransfer: Boolean,
+    onTransferClick: () -> Unit,
+) {
     val progress = row.progress()
     Card(
         modifier = Modifier
@@ -303,6 +314,11 @@ private fun ProgressHeader(row: GoalWithSaved, canTransfer: Boolean, onTransferC
                 else -> "還差 ${formatMoney(progress.remaining)}"
             }
             Text(statusText, style = MaterialTheme.typography.bodyLarge)
+            forecast?.describe(today)?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, style = MaterialTheme.typography.bodyMedium)
+            }
+            Spacer(Modifier.height(4.dp))
             Text(
                 "購買日期 ${row.goal.purchaseDate.display()}",
                 style = MaterialTheme.typography.bodySmall,

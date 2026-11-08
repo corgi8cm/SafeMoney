@@ -56,6 +56,7 @@ fun HomeScreen(
     onAddGoal: () -> Unit,
     onOpenGoal: (Long) -> Unit,
     onAddSaving: () -> Unit,
+    onOpenStats: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -94,7 +95,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 state.summary?.takeIf { it.goalCount > 0 }?.let { summary ->
-                    item(key = "summary") { SummaryCard(summary) }
+                    item(key = "summary") { SummaryCard(summary, onClick = onOpenStats) }
                 }
 
                 if (state.active.isNotEmpty()) {
@@ -174,9 +175,10 @@ private fun SectionHeader(text: String) {
 }
 
 @Composable
-private fun SummaryCard(summary: Summary) {
+private fun SummaryCard(summary: Summary, onClick: () -> Unit) {
     val progress = summary.progress ?: return
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -200,10 +202,14 @@ private fun SummaryCard(summary: Summary) {
             Spacer(Modifier.height(12.dp))
             GoalProgressBar(progress)
             Spacer(Modifier.height(8.dp))
-            Text(
-                "${progress.percentText()} · ${summary.goalCount} 個目標，${summary.completedCount} 個已回本",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${progress.percentText()} · ${summary.goalCount} 個目標，${summary.completedCount} 個已回本",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text("統計 ›", style = MaterialTheme.typography.labelLarge)
+            }
         }
     }
 }
