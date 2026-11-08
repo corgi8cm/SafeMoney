@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -57,6 +58,7 @@ fun HomeScreen(
     onOpenGoal: (Long) -> Unit,
     onAddSaving: () -> Unit,
     onOpenStats: () -> Unit,
+    onOpenSettings: () -> Unit,
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -68,6 +70,7 @@ fun HomeScreen(
                 title = { Text("省回來") },
                 actions = {
                     IconButton(onClick = onAddGoal) { Icon(Icons.Filled.Add, contentDescription = "新增目標") }
+                    IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, contentDescription = "設定") }
                 },
             )
         },

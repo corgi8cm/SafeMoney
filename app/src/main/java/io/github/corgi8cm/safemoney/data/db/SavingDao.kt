@@ -16,6 +16,16 @@ interface SavingDao {
     @Update
     suspend fun updateSaving(saving: Saving)
 
+    @Insert
+    suspend fun insertSavings(savings: List<Saving>)
+
+    @Query("DELETE FROM saving")
+    suspend fun deleteAll()
+
+    @Transaction
+    @Query("SELECT * FROM saving ORDER BY id")
+    suspend fun getAllWithAllocations(): List<SavingWithAllocations>
+
     @Query("DELETE FROM saving WHERE id = :id")
     suspend fun deleteSaving(id: Long)
 

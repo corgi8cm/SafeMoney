@@ -28,6 +28,16 @@ interface GoalDao {
     @Delete
     suspend fun delete(goal: Goal)
 
+    @Insert
+    suspend fun insertAll(goals: List<Goal>)
+
+    @Query("SELECT * FROM goal ORDER BY id")
+    suspend fun getAll(): List<Goal>
+
+    /** 分配會因 CASCADE 一併刪除。 */
+    @Query("DELETE FROM goal")
+    suspend fun deleteAll()
+
     @Query("SELECT * FROM goal WHERE id = :id")
     suspend fun getById(id: Long): Goal?
 

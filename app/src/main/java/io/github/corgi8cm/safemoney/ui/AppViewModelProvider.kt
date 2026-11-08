@@ -11,6 +11,7 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalDetailViewModel
 import io.github.corgi8cm.safemoney.ui.goal.GoalEditViewModel
 import io.github.corgi8cm.safemoney.ui.home.HomeViewModel
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditViewModel
+import io.github.corgi8cm.safemoney.ui.settings.SettingsViewModel
 import io.github.corgi8cm.safemoney.ui.stats.StatsViewModel
 
 /** 所有 ViewModel 的建構方式（手動相依注入）。導覽參數透過 SavedStateHandle 傳入。 */
@@ -21,8 +22,10 @@ object AppViewModelProvider {
         initializer { GoalDetailViewModel(createSavedStateHandle(), repository()) }
         initializer { SavingEditViewModel(createSavedStateHandle(), repository()) }
         initializer { StatsViewModel(repository()) }
+        initializer { SettingsViewModel(app(), repository()) }
     }
 }
 
-private fun CreationExtras.repository(): SafeMoneyRepository =
-    (checkNotNull(this[APPLICATION_KEY]) as SafeMoneyApp).repository
+private fun CreationExtras.app(): SafeMoneyApp = checkNotNull(this[APPLICATION_KEY]) as SafeMoneyApp
+
+private fun CreationExtras.repository(): SafeMoneyRepository = app().repository
