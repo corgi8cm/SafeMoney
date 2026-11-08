@@ -11,6 +11,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
+import androidx.compose.ui.semantics.Role
+import io.github.corgi8cm.safemoney.ui.celebration.CelebrationDialog
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -69,6 +77,7 @@ fun GoalDetailScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var menuOpen by remember { mutableStateOf(false) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
+    var showTransfer by rememberSaveable { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
 
     // 目標被刪除（或不存在）時離開這頁
@@ -134,7 +143,13 @@ fun GoalDetailScreen(
                 bottom = padding.calculateBottomPadding() + 96.dp,
             ),
         ) {
-            item(key = "header") { ProgressHeader(row) }
+            item(key = "header") {
+                ProgressHeader(
+                    row = row,
+                    canTransfer = state.transferTargets.isNotEmpty() && !viewModel.transferring,
+                    onTransferClick = { showTransfer = true },
+                )
+            }
             item(key = "records-title") {
                 Text(
                     "省錢紀錄（${state.savings.size}）",
@@ -160,6 +175,28 @@ fun GoalDetailScreen(
         }
     }
 
+    if (showTransfer && row != null) {
+        TransferDialog(
+            overflow = row.progress().overflow,
+            targets = state.transferTargets,
+            onConfirm = { toGoalId ->
+                showTransfer = false
+                viewModel.transferOverflow(toGoalId)
+            },
+            onDismiss = { showTransfer = false },
+        )
+    }
+
+    val celebration = viewModel.celebration
+    celebration.current?.let { ui ->
+        CelebrationDialog(
+            ui = ui,
+            busy = celebration.busy,
+            onTransfer = celebration::transfer,
+            onNext = celebration::next,
+        )
+    }
+
     if (confirmDelete && row != null) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -179,7 +216,57 @@ fun GoalDetailScreen(
 }
 
 @Composable
-private fun ProgressHeader(row: GoalWithSaved) {
+private fun TransferDialog(
+    overflow: Long,
+    targets: List<GoalWithSaved>,
+    onConfirm: (Long) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var selected by rememberSaveable { mutableStateOf(targets.firstOrNull()?.goal?.id) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("轉移多省的 ${formatMoney(overflow)}") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                Text(
+                    "會從最近的省錢紀錄改分給選擇的目標，紀錄的總金額不變，這個目標會剛好停在 100%。",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.height(8.dp))
+                targets.forEach { target ->
+                    val isSelected = target.goal.id == selected
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .selectable(isSelected, onClick = { selected = target.goal.id }, role = Role.RadioButton)
+                            .padding(vertical = 4.dp),
+                    ) {
+                        RadioButton(selected = isSelected, onClick = null)
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(target.goal.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                "還差 ${formatMoney(target.progress().remaining)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { selected?.let(onConfirm) }, enabled = selected != null) { Text("轉過去") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun ProgressHeader(row: GoalWithSaved, canTransfer: Boolean, onTransferClick: () -> Unit) {
     val progress = row.progress()
     Card(
         modifier = Modifier
@@ -223,6 +310,19 @@ private fun ProgressHeader(row: GoalWithSaved) {
             row.goal.note?.let {
                 Spacer(Modifier.height(4.dp))
                 Text(it, style = MaterialTheme.typography.bodySmall)
+            }
+            if (row.goal.status != GoalStatus.ARCHIVED && progress.overflow > 0) {
+                Spacer(Modifier.height(12.dp))
+                if (canTransfer) {
+                    OutlinedButton(onClick = onTransferClick, modifier = Modifier.fillMaxWidth()) {
+                        Text("把多省的 ${formatMoney(progress.overflow)} 轉給其他目標")
+                    }
+                } else {
+                    Text(
+                        "新增其他目標後，就能把多省的錢轉過去。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
         }
     }

@@ -13,6 +13,7 @@ import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.domain.Allocations
 import io.github.corgi8cm.safemoney.domain.SavingForm
 import io.github.corgi8cm.safemoney.ui.Routes
+import io.github.corgi8cm.safemoney.ui.celebration.CelebrationController
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -62,6 +63,9 @@ class SavingEditViewModel(
         private set
     var done by mutableStateOf(false)
         private set
+
+    /** 存檔後有目標剛回本時，在這裡依序慶祝。 */
+    val celebration = CelebrationController(repository, viewModelScope)
 
     init {
         viewModelScope.launch {
@@ -141,15 +145,19 @@ class SavingEditViewModel(
                 busy = true
                 viewModelScope.launch {
                     try {
-                        if (savingId == null) {
-                            repository.addSaving(reason, date, result.allocations)
+                        val completed = if (savingId == null) {
+                            repository.addSaving(reason, date, result.allocations).completedGoalIds
                         } else {
                             repository.updateSaving(savingId, reason, date, result.allocations)
                         }
-                        done = true
+                        if (completed.isEmpty()) {
+                            done = true
+                        } else {
+                            // 保持 busy，慶祝看完（celebration.finished）才離開
+                            celebration.start(completed)
+                        }
                     } catch (e: IllegalArgumentException) {
                         error = e.message
-                    } finally {
                         busy = false
                     }
                 }

@@ -111,6 +111,7 @@ data class SavingAllocation(
 - 記錄頁預設只選一個目標（最常見情境）；按「拆分」可加入多個目標，並提供「平均分配」快捷鍵（`Allocations.splitEvenly`，餘數從第一個目標起各多 1 元）。
 - 已省金額不另存欄位，用 `SUM(saving_allocation.amount) WHERE goalId = ?` 即時計算，避免資料不一致。
 - 目標狀態由 Repository 自動維護：已省 ≥ 目標金額 → `COMPLETED`；之後若刪除紀錄或調高金額而不足 → 退回 `ACTIVE`；`ARCHIVED` 不受影響。
+- 超額轉移：不新增紀錄，而是把來源目標「最新的」幾筆分配改分給目標（例：最後一筆 500 元中 300 是多省的 → 改成「來源 200 + 目標 300」的拆分）。紀錄總額不變，來源剛好停在 100%。
 - 資料庫 schema 匯出到 `app/schemas/` 並進 git，之後改版時用來撰寫與驗證 migration。CI 會檢查 schema 是否已提交。
 - 金額一律用整數（元），台幣不需要小數。
 
@@ -194,7 +195,7 @@ SafeMoney/
 | **M0 專案建置** ✅ | git init、建立 GitHub repo、Android 專案骨架（空白 Compose 畫面）、`build.yml` | CI 能產出可安裝的空白 APK |
 | **M1 資料層** ✅ | Room entity / DAO / Repository + 單元測試 | 進度計算邏輯有測試保護 |
 | **M2 MVP 畫面** ✅ | 首頁、新增/編輯目標、記錄省錢（含拆分）、目標詳細頁 | `v0.1.0`：可以實際拿來用 |
-| **M3 完成體驗** | 完成慶祝、已回本區、超額轉移、總覽 | `v0.2.0` |
+| **M3 完成體驗** ✅ | 完成慶祝、已回本區、超額轉移、總覽 | `v0.2.0` |
 | **M4 發佈流程** | 簽章金鑰、`release.yml`、GitHub Releases | 正式簽章 APK 可長期更新 |
 | **M5 第二版功能** | 圖表、預估完成日、提醒、匯出匯入、Widget | `v0.3.0+` |
 
