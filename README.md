@@ -11,6 +11,8 @@
 到 [Releases](https://github.com/corgi8cm/SafeMoney/releases/latest) 下載 `SafeMoney-vX.Y.Z.apk`，傳到手機安裝（需允許「安裝未知應用程式」）。
 正式版都用同一把金鑰簽章，之後的新版本可以直接覆蓋安裝，資料會保留。
 
+資料只存在手機上。換手機或解除安裝前，到「設定 → 匯出備份」存一份 JSON 檔，之後在新手機用「從備份還原」。
+
 ### 測試版（每次 PR / push 的建置）
 
 GitHub Actions 的 **Build** 也會產出 `safemoney-debug-…`，安裝後名稱為「省回來 測試版」：

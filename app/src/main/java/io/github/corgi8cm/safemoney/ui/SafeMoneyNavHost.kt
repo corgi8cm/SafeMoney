@@ -11,6 +11,7 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalDetailScreen
 import io.github.corgi8cm.safemoney.ui.goal.GoalEditScreen
 import io.github.corgi8cm.safemoney.ui.home.HomeScreen
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditScreen
+import io.github.corgi8cm.safemoney.ui.settings.SettingsScreen
 import io.github.corgi8cm.safemoney.ui.stats.StatsScreen
 
 object Routes {
@@ -19,6 +20,7 @@ object Routes {
 
     const val HOME = "home"
     const val STATS = "stats"
+    const val SETTINGS = "settings"
     const val GOAL_DETAIL = "goalDetail/{$ARG_GOAL_ID}"
     const val GOAL_EDIT = "goalEdit?$ARG_GOAL_ID={$ARG_GOAL_ID}"
     const val SAVING_EDIT = "savingEdit?$ARG_SAVING_ID={$ARG_SAVING_ID}&$ARG_GOAL_ID={$ARG_GOAL_ID}"
@@ -45,10 +47,14 @@ fun SafeMoneyNavHost(navController: NavHostController = rememberNavController())
                 onOpenGoal = { navController.navigate(Routes.goalDetail(it)) },
                 onAddSaving = { navController.navigate(Routes.savingNew()) },
                 onOpenStats = { navController.navigate(Routes.STATS) },
+                onOpenSettings = { navController.navigate(Routes.SETTINGS) },
             )
         }
         composable(Routes.STATS) {
             StatsScreen(onBack = back)
+        }
+        composable(Routes.SETTINGS) {
+            SettingsScreen(onBack = back)
         }
         composable(
             Routes.GOAL_DETAIL,

@@ -1,6 +1,7 @@
 package io.github.corgi8cm.safemoney.data
 
 import androidx.room.withTransaction
+import io.github.corgi8cm.safemoney.data.backup.BackupData
 import io.github.corgi8cm.safemoney.data.db.Goal
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
@@ -193,6 +194,34 @@ class SafeMoneyRepository(
                 savingDao.deleteSaving(savingId) // 分配會因 CASCADE 一併刪除
                 refreshCompletion(existing.allocations.map { it.goalId })
             }
+        }
+    }
+
+    // ---- 備份與還原 ----
+
+    /** 目前所有資料的快照（給匯出用）。 */
+    suspend fun snapshot(appVersion: String?): BackupData = db.withTransaction {
+        BackupData(
+            exportedAt = clock.instant(),
+            appVersion = appVersion,
+            goals = goalDao.getAll(),
+            savings = savingDao.getAllWithAllocations(),
+        )
+    }
+
+    /**
+     * 用備份內容**取代**目前所有資料（保留原本的編號）。
+     * 全部在同一個 transaction 裡，失敗時原資料不受影響。
+     * 還原後依已省金額重新同步目標狀態（不會觸發慶祝）。
+     */
+    suspend fun restore(data: BackupData) {
+        db.withTransaction {
+            savingDao.deleteAll()
+            goalDao.deleteAll()
+            goalDao.insertAll(data.goals)
+            savingDao.insertSavings(data.savings.map { it.saving })
+            savingDao.insertAllocations(data.savings.flatMap { it.allocations })
+            refreshCompletion(data.goals.map { it.id })
         }
     }
 
