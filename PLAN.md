@@ -85,7 +85,7 @@ data class Goal(
 @Entity
 data class Saving(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val amount: Long,            // 這次總共省下 100
+    // 總金額不另存，= 其所有 SavingAllocation.amount 的加總（例：100）
     val reason: String,          // 沒叫外送
     val date: LocalDate,
     val createdAt: Instant,
@@ -106,9 +106,12 @@ data class SavingAllocation(
 )
 ```
 
-- 拆分規則：同一筆紀錄的各分配金額加總必須等於 `Saving.amount`（存檔時在 Repository 驗證）。
-- 記錄頁預設只選一個目標（最常見情境）；按「拆分」可加入多個目標，並提供「平均分配」快捷鍵。
+- 拆分規則：至少分給一個目標、每份金額 > 0、同一目標不可重複（`Allocations.validate`）。
+- 紀錄總金額 = 分配加總，因此不會出現「總額與分配不符」；刪除目標時，分給它的部分一起消失，完全沒有分配的紀錄也會被刪除。
+- 記錄頁預設只選一個目標（最常見情境）；按「拆分」可加入多個目標，並提供「平均分配」快捷鍵（`Allocations.splitEvenly`，餘數從第一個目標起各多 1 元）。
 - 已省金額不另存欄位，用 `SUM(saving_allocation.amount) WHERE goalId = ?` 即時計算，避免資料不一致。
+- 目標狀態由 Repository 自動維護：已省 ≥ 目標金額 → `COMPLETED`；之後若刪除紀錄或調高金額而不足 → 退回 `ACTIVE`；`ARCHIVED` 不受影響。
+- 資料庫 schema 匯出到 `app/schemas/` 並進 git，之後改版時用來撰寫與驗證 migration。CI 會檢查 schema 是否已提交。
 - 金額一律用整數（元），台幣不需要小數。
 
 ## 6. 畫面規劃
