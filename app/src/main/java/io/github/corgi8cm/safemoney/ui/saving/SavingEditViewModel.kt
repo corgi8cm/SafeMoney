@@ -23,9 +23,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-/** 常用的省錢原因，點一下就填入。 */
-val QUICK_REASONS = listOf("沒買飲料", "自己帶便當", "少吃零食", "沒搭計程車", "沒網購", "沒喝咖啡")
-
 class SavingEditViewModel(
     savedStateHandle: SavedStateHandle,
     private val repository: SafeMoneyRepository,
@@ -44,6 +41,10 @@ class SavingEditViewModel(
                 // 進行中的排前面
                 .sortedBy { if (it.goal.status == GoalStatus.ACTIVE) 0 else 1 }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** 快捷原因，常用的在前面。 */
+    val quickReasons: StateFlow<List<String>> =
+        repository.observeQuickReasonsByUsage().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     var amountText by mutableStateOf("")
     var reason by mutableStateOf("")

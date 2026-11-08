@@ -62,7 +62,9 @@ import io.github.corgi8cm.safemoney.data.db.total
 import io.github.corgi8cm.safemoney.domain.Forecast
 import java.time.LocalDate
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
+import io.github.corgi8cm.safemoney.ui.common.GoalAvatar
 import io.github.corgi8cm.safemoney.ui.common.GoalProgressBar
+import io.github.corgi8cm.safemoney.ui.common.accentColor
 import io.github.corgi8cm.safemoney.ui.common.describe
 import io.github.corgi8cm.safemoney.ui.common.display
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
@@ -289,6 +291,10 @@ private fun ProgressHeader(
         ),
     ) {
         Column(Modifier.padding(20.dp)) {
+            if (row.goal.emoji != null || row.goal.color != null) {
+                GoalAvatar(row.goal, size = 48.dp)
+                Spacer(Modifier.height(12.dp))
+            }
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(
                     formatMoney(row.saved),
@@ -304,7 +310,7 @@ private fun ProgressHeader(
                 Text(progress.percentText(), style = MaterialTheme.typography.titleLarge)
             }
             Spacer(Modifier.height(12.dp))
-            GoalProgressBar(progress)
+            GoalProgressBar(progress, color = row.goal.accentColor())
             Spacer(Modifier.height(8.dp))
             val statusText = when {
                 row.goal.status == GoalStatus.ARCHIVED -> "已封存"

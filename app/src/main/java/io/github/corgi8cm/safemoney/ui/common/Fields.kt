@@ -117,9 +117,14 @@ fun DateField(
 }
 
 @Composable
-fun GoalProgressBar(progress: Progress, modifier: Modifier = Modifier) {
+fun GoalProgressBar(
+    progress: Progress,
+    modifier: Modifier = Modifier,
+    color: androidx.compose.ui.graphics.Color = androidx.compose.material3.ProgressIndicatorDefaults.linearColor,
+) {
     LinearProgressIndicator(
         progress = { progress.fraction },
+        color = color,
         modifier = modifier
             .fillMaxWidth()
             .height(8.dp),

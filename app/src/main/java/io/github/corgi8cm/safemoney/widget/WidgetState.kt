@@ -21,7 +21,7 @@ fun widgetState(goals: List<GoalWithSaved>): WidgetState = WidgetState(
     summary = summarize(goals),
     activeGoals = goals
         .filter { it.goal.status == GoalStatus.ACTIVE }
-        .map { WidgetGoal(it.goal.id, it.goal.name, it.progress()) }
+        .map { WidgetGoal(it.goal.id, listOfNotNull(it.goal.emoji, it.goal.name).joinToString(" "), it.progress()) }
         .sortedWith(compareByDescending<WidgetGoal> { it.progress.fraction }.thenBy { it.id }),
     hasAnyGoal = goals.any { it.goal.status != GoalStatus.ARCHIVED },
 )

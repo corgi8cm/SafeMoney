@@ -25,6 +25,16 @@ data class Goal(
     val status: GoalStatus = GoalStatus.ACTIVE,
     val createdAt: Instant,
     val completedAt: Instant? = null,
+    /** 目標的小圖示（一個 emoji），沒有時顯示名稱第一個字。DB 第 2 版新增。 */
+    val emoji: String? = null,
+)
+
+/** 記錄頁的快捷原因。DB 第 2 版新增；排序依使用次數，次數相同時依 [position]。 */
+@Entity(tableName = "quick_reason", indices = [Index(value = ["text"], unique = true)])
+data class QuickReason(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val text: String,
+    val position: Int,
 )
 
 /**

@@ -21,6 +21,8 @@ data class BackupData(
     val appVersion: String?,
     val goals: List<Goal>,
     val savings: List<SavingWithAllocations>,
+    /** null = 備份檔沒有這項（舊版備份），還原時保留手機上的快捷原因。 */
+    val quickReasons: List<String>? = null,
 )
 
 // ---- JSON 檔案格式（第 1 版）----
@@ -34,6 +36,7 @@ internal data class BackupFile(
     val appVersion: String? = null,
     val goals: List<GoalJson> = emptyList(),
     val savings: List<SavingJson> = emptyList(),
+    val quickReasons: List<String>? = null,
 )
 
 @Serializable
@@ -47,6 +50,7 @@ internal data class GoalJson(
     val status: String,
     val createdAt: String,
     val completedAt: String? = null,
+    val emoji: String? = null,
 )
 
 @Serializable
@@ -89,6 +93,7 @@ object BackupCodec {
                     status = g.status.name,
                     createdAt = g.createdAt.toString(),
                     completedAt = g.completedAt?.toString(),
+                    emoji = g.emoji,
                 )
             },
             savings = data.savings.sortedBy { it.saving.id }.map { s ->
@@ -100,6 +105,7 @@ object BackupCodec {
                     allocations = s.allocations.sortedBy { it.goalId }.map { AllocationJson(it.goalId, it.amount) },
                 )
             },
+            quickReasons = data.quickReasons,
         )
         return json.encodeToString(BackupFile.serializer(), file)
     }
@@ -145,6 +151,7 @@ object BackupCodec {
             appVersion = file.appVersion,
             goals = goals,
             savings = savings,
+            quickReasons = file.quickReasons,
         )
     }
 
@@ -159,6 +166,7 @@ object BackupCodec {
             ?: throw BackupException("備份檔內容有誤：不認得的目標狀態「$status」"),
         createdAt = parseInstant(createdAt),
         completedAt = completedAt?.let(::parseInstant),
+        emoji = emoji,
     )
 
     private inline fun check(condition: Boolean, message: () -> String) {

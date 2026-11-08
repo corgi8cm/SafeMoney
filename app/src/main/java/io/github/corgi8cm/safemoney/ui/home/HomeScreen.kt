@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -47,7 +48,9 @@ import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.progress
 import io.github.corgi8cm.safemoney.domain.Summary
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
+import io.github.corgi8cm.safemoney.ui.common.GoalAvatar
 import io.github.corgi8cm.safemoney.ui.common.GoalProgressBar
+import io.github.corgi8cm.safemoney.ui.common.accentColor
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
 import io.github.corgi8cm.safemoney.ui.common.percentText
 
@@ -223,6 +226,8 @@ private fun GoalCard(row: GoalWithSaved, onClick: () -> Unit) {
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                GoalAvatar(row.goal, size = 36.dp)
+                Spacer(Modifier.width(12.dp))
                 Text(
                     row.goal.name,
                     style = MaterialTheme.typography.titleMedium,
@@ -237,7 +242,7 @@ private fun GoalCard(row: GoalWithSaved, onClick: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(8.dp))
-            GoalProgressBar(progress)
+            GoalProgressBar(progress, color = row.goal.accentColor())
             Spacer(Modifier.height(8.dp))
             Row {
                 Text(

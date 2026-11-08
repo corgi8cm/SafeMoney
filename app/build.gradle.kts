@@ -67,6 +67,11 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+
+    // 遷移測試（MigrationTestHelper）從 assets 讀取已匯出的各版 schema
+    sourceSets {
+        getByName("test").assets.srcDir("$projectDir/schemas")
+    }
 }
 
 room {
@@ -101,4 +106,5 @@ dependencies {
     testImplementation(libs.androidx.test.core.ktx)
     testImplementation(libs.androidx.test.ext.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.room.testing)
 }

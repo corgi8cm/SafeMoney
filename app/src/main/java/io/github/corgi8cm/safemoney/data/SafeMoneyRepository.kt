@@ -5,6 +5,8 @@ import io.github.corgi8cm.safemoney.data.backup.BackupData
 import io.github.corgi8cm.safemoney.data.db.Goal
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
+import io.github.corgi8cm.safemoney.data.db.DEFAULT_QUICK_REASONS
+import io.github.corgi8cm.safemoney.data.db.QuickReason
 import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import io.github.corgi8cm.safemoney.data.db.Saving
 import io.github.corgi8cm.safemoney.data.db.SavingAllocation
@@ -30,6 +32,7 @@ class SafeMoneyRepository(
 ) {
     private val goalDao = db.goalDao()
     private val savingDao = db.savingDao()
+    private val reasonDao = db.quickReasonDao()
 
     // ---- 讀取 ----
 
@@ -67,6 +70,7 @@ class SafeMoneyRepository(
         purchaseDate: LocalDate,
         note: String? = null,
         color: Int? = null,
+        emoji: String? = null,
     ): Long {
         validateGoal(name, amount)
         return goalDao.insert(
@@ -77,6 +81,7 @@ class SafeMoneyRepository(
                 note = note?.trim()?.ifEmpty { null },
                 color = color,
                 createdAt = clock.instant(),
+                emoji = emoji?.trim()?.ifEmpty { null },
             )
         )
     }
@@ -93,6 +98,7 @@ class SafeMoneyRepository(
                 goal.copy(
                     name = goal.name.trim(),
                     note = goal.note?.trim()?.ifEmpty { null },
+                    emoji = goal.emoji?.trim()?.ifEmpty { null },
                     status = existing.status,
                     completedAt = existing.completedAt,
                     createdAt = existing.createdAt,
@@ -203,6 +209,55 @@ class SafeMoneyRepository(
         }
     }
 
+    // ---- 快捷原因 ----
+
+    /** 記錄頁用：最近 [USAGE_WINDOW_DAYS] 天用得越多越前面。 */
+    fun observeQuickReasonsByUsage(today: LocalDate = LocalDate.now(clock)): Flow<List<String>> =
+        reasonDao.observeByUsage(today.minusDays(USAGE_WINDOW_DAYS - 1)).map { list -> list.map { it.text } }
+
+    /** 設定頁用：依加入順序。 */
+    fun observeQuickReasons(): Flow<List<QuickReason>> = reasonDao.observeAll()
+
+    suspend fun addQuickReason(text: String) {
+        val clean = validateReason(text)
+        db.withTransaction {
+            require(reasonDao.getByText(clean) == null) { "「$clean」已經在清單裡了" }
+            reasonDao.insert(QuickReason(text = clean, position = reasonDao.maxPosition() + 1))
+        }
+    }
+
+    suspend fun renameQuickReason(id: Long, text: String) {
+        val clean = validateReason(text)
+        db.withTransaction {
+            val existing = reasonDao.getAll().firstOrNull { it.id == id } ?: return@withTransaction
+            val sameText = reasonDao.getByText(clean)
+            require(sameText == null || sameText.id == id) { "「$clean」已經在清單裡了" }
+            reasonDao.update(existing.copy(text = clean))
+        }
+    }
+
+    suspend fun deleteQuickReason(id: Long) = reasonDao.delete(id)
+
+    /** 換回預設的快捷原因（已經記下的紀錄不受影響）。 */
+    suspend fun resetQuickReasons() = replaceQuickReasons(DEFAULT_QUICK_REASONS)
+
+    private suspend fun replaceQuickReasons(texts: List<String>) {
+        db.withTransaction {
+            reasonDao.deleteAll()
+            reasonDao.insertAll(
+                texts.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+                    .mapIndexed { index, text -> QuickReason(text = text, position = index) }
+            )
+        }
+    }
+
+    private fun validateReason(text: String): String {
+        val clean = text.trim()
+        require(clean.isNotEmpty()) { "原因不能空白" }
+        require(clean.length <= MAX_REASON_LENGTH) { "原因最多 $MAX_REASON_LENGTH 個字" }
+        return clean
+    }
+
     // ---- 備份與還原 ----
 
     /** 目前所有資料的快照（給匯出用）。 */
@@ -212,6 +267,7 @@ class SafeMoneyRepository(
             appVersion = appVersion,
             goals = goalDao.getAll(),
             savings = savingDao.getAllWithAllocations(),
+            quickReasons = reasonDao.getAll().map { it.text },
         )
     }
 
@@ -228,6 +284,8 @@ class SafeMoneyRepository(
             savingDao.insertSavings(data.savings.map { it.saving })
             savingDao.insertAllocations(data.savings.flatMap { it.allocations })
             refreshCompletion(data.goals.map { it.id })
+            // 舊版備份檔沒有快捷原因，這時保留手機上目前的
+            data.quickReasons?.let { replaceQuickReasons(it) }
         }
     }
 
@@ -275,6 +333,12 @@ fun summarize(goals: List<GoalWithSaved>): Summary {
         totalSaved = visible.sumOf { it.saved },
     )
 }
+
+/** 快捷原因依最近幾天的使用次數排序。 */
+const val USAGE_WINDOW_DAYS = 90L
+
+/** 跟記錄頁的原因欄位上限一致。 */
+const val MAX_REASON_LENGTH = 40
 
 data class SaveResult(val savingId: Long, val completedGoalIds: List<Long>)
 
