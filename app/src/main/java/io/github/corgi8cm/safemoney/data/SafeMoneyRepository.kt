@@ -11,6 +11,7 @@ import io.github.corgi8cm.safemoney.data.db.SavingAllocation
 import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
 import io.github.corgi8cm.safemoney.domain.AllocationInput
 import io.github.corgi8cm.safemoney.domain.Allocations
+import io.github.corgi8cm.safemoney.domain.NearestGoal
 import io.github.corgi8cm.safemoney.domain.Summary
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -52,6 +53,16 @@ class SafeMoneyRepository(
             totalSaved = visible.sumOf { it.saved },
         )
     }
+
+    /** 今天是否已有省錢紀錄（給每日提醒判斷要不要打擾）。 */
+    suspend fun hasSavingOn(date: LocalDate): Boolean = savingDao.countOnDate(date) > 0
+
+    /** 最接近回本的進行中目標。 */
+    suspend fun nearestActiveGoal(): NearestGoal? =
+        goalDao.getAllWithSaved()
+            .filter { it.goal.status == GoalStatus.ACTIVE }
+            .minByOrNull { it.goal.amount - it.saved }
+            ?.let { NearestGoal(it.goal.name, (it.goal.amount - it.saved).coerceAtLeast(0)) }
 
     // ---- 目標 ----
 

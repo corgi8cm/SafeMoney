@@ -1,16 +1,17 @@
 package io.github.corgi8cm.safemoney.ui.settings
 
-import android.app.Application
 import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.corgi8cm.safemoney.SafeMoneyApp
 import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.backup.BackupCodec
 import io.github.corgi8cm.safemoney.data.backup.BackupData
 import io.github.corgi8cm.safemoney.data.backup.BackupException
+import io.github.corgi8cm.safemoney.reminder.ReminderConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /** 手機上目前的資料量，顯示在還原確認視窗。 */
@@ -29,7 +31,7 @@ data class DataCounts(val goals: Int = 0, val savings: Int = 0)
 private const val MAX_BACKUP_BYTES = 10 * 1024 * 1024
 
 class SettingsViewModel(
-    private val app: Application,
+    private val app: SafeMoneyApp,
     private val repository: SafeMoneyRepository,
 ) : ViewModel() {
     val appVersion: String = runCatching {
@@ -40,6 +42,22 @@ class SettingsViewModel(
         combine(repository.observeGoals(), repository.observeAllSavings()) { goals, savings ->
             DataCounts(goals.size, savings.size)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DataCounts())
+
+    val reminder: StateFlow<ReminderConfig> = app.reminderSettings.config
+
+    fun setReminderEnabled(enabled: Boolean) = updateReminder(reminder.value.copy(enabled = enabled))
+
+    fun setReminderTime(time: LocalTime) = updateReminder(reminder.value.copy(time = time))
+
+    private fun updateReminder(config: ReminderConfig) {
+        app.reminderSettings.update(config)
+        app.reminderScheduler.apply(config)
+    }
+
+    /** 給畫面顯示一次性訊息（例如沒有通知權限）。 */
+    fun showMessage(text: String) {
+        message = text
+    }
 
     var busy by mutableStateOf(false)
         private set

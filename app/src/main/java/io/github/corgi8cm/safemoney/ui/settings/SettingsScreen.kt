@@ -1,5 +1,9 @@
 package io.github.corgi8cm.safemoney.ui.settings
 
+import android.Manifest
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -10,7 +14,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
@@ -20,6 +26,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -30,7 +39,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import io.github.corgi8cm.safemoney.reminder.ReminderNotifier
+import java.time.LocalTime
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
@@ -50,6 +66,34 @@ fun SettingsScreen(
 ) {
     val counts by viewModel.counts.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    val reminder by viewModel.reminder.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var canNotify by remember { mutableStateOf(ReminderNotifier.canNotify(context)) }
+    LifecycleResumeEffect(Unit) {
+        // 從系統設定回來時更新通知權限狀態
+        canNotify = ReminderNotifier.canNotify(context)
+        onPauseOrDispose { }
+    }
+    var pickTime by rememberSaveable { mutableStateOf(false) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        canNotify = ReminderNotifier.canNotify(context)
+        if (granted) {
+            viewModel.setReminderEnabled(true)
+        } else {
+            viewModel.showMessage("沒有通知權限就無法提醒，可以到系統設定開啟")
+        }
+    }
+    val onReminderToggle: (Boolean) -> Unit = { on ->
+        val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !canNotify
+        if (on && needsPermission) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.setReminderEnabled(on)
+        }
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -87,6 +131,36 @@ fun SettingsScreen(
             if (viewModel.busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
+            SectionTitle("每日提醒")
+            ListItem(
+                leadingContent = { Icon(Icons.Filled.Notifications, contentDescription = null) },
+                headlineContent = { Text("提醒我記錄") },
+                supportingContent = { Text("今天已經記過就不會打擾") },
+                trailingContent = { Switch(checked = reminder.enabled, onCheckedChange = null) },
+                modifier = Modifier.clickable { onReminderToggle(!reminder.enabled) },
+            )
+            SettingRow(
+                icon = Icons.Filled.DateRange,
+                title = "提醒時間",
+                subtitle = "每天 %02d:%02d".format(reminder.time.hour, reminder.time.minute),
+                enabled = reminder.enabled,
+                onClick = { pickTime = true },
+            )
+            if (reminder.enabled && !canNotify) {
+                ListItem(
+                    headlineContent = {
+                        Text("通知已被關閉，提醒不會出現", color = MaterialTheme.colorScheme.error)
+                    },
+                    supportingContent = { Text("點這裡到系統設定開啟通知") },
+                    modifier = Modifier.clickable {
+                        context.startActivity(
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                        )
+                    },
+                )
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionTitle("備份與還原")
             Text(
                 "資料只存在這支手機上，解除安裝或換手機前記得先匯出備份。" +
@@ -119,6 +193,17 @@ fun SettingsScreen(
         }
     }
 
+    if (pickTime) {
+        ReminderTimeDialog(
+            initial = reminder.time,
+            onConfirm = {
+                pickTime = false
+                viewModel.setReminderTime(it)
+            },
+            onDismiss = { pickTime = false },
+        )
+    }
+
     viewModel.pendingRestore?.let { data ->
         AlertDialog(
             onDismissRequest = viewModel::cancelRestore,
@@ -140,6 +225,23 @@ fun SettingsScreen(
             },
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ReminderTimeDialog(initial: LocalTime, onConfirm: (LocalTime) -> Unit, onDismiss: () -> Unit) {
+    val state = rememberTimePickerState(initialHour = initial.hour, initialMinute = initial.minute, is24Hour = true)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("提醒時間") },
+        text = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) { Text("確定") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
 }
 
 @Composable
