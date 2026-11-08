@@ -158,7 +158,7 @@ SafeMoney/
 - 版本號：語意化版本 `v0.1.0`、`v0.2.0`…，打 tag 觸發 release
 - `.gitignore` 排除：`build/`、`.gradle/`、`local.properties`、`*.jks` / `*.keystore`（簽章金鑰絕不進 git）
 
-> 專案放在 `C:\dev\SafeMoney`（非 OneDrive 同步資料夾），避免 OneDrive 同步 `.git` 造成衝突；備份交給 GitHub。
+> 專案放在 OneDrive 同步資料夾內。OneDrive 同步 `.git` 偶爾會造成檔案鎖定或產生衝突副本；若 git 出現奇怪錯誤，先暫停 OneDrive 同步再操作。主要備份是 GitHub。
 
 ## 9. GitHub Actions 雲端編譯 APK
 
@@ -203,4 +203,4 @@ SafeMoney/
 1. App 名稱：英文 SafeMoney，中文「省回來」（手機上顯示「省回來」）
 2. 一筆省錢紀錄**允許拆分到多個目標**（見第 5 節 `SavingAllocation`）
 3. GitHub repo 為 **public**
-4. 專案已從 OneDrive 搬到 `C:\dev\SafeMoney`
+4. 專案放在原本的 OneDrive 資料夾（`桌面\projects\safe_money\SafeMoney`）
