@@ -33,9 +33,10 @@ object Routes {
     const val ARG_GOAL_ID = "goalId"
     const val ARG_SAVING_ID = "savingId"
     const val ARG_RULE_ID = "ruleId"
+    const val ARG_MONTH = "month"
 
     const val HOME = "home"
-    const val STATS = "stats"
+    const val STATS = "stats?$ARG_MONTH={$ARG_MONTH}"
     const val SETTINGS = "settings"
     const val QUICK_REASONS = "quickReasons"
     const val RECORDS = "records"
@@ -47,6 +48,7 @@ object Routes {
     const val SAVING_EDIT = "savingEdit?$ARG_SAVING_ID={$ARG_SAVING_ID}&$ARG_GOAL_ID={$ARG_GOAL_ID}"
 
     fun goalDetail(goalId: Long) = "goalDetail/$goalId"
+    fun stats(month: java.time.YearMonth? = null) = if (month == null) "stats" else "stats?$ARG_MONTH=$month"
     fun goalEdit(goalId: Long? = null) = if (goalId == null) "goalEdit" else "goalEdit?$ARG_GOAL_ID=$goalId"
     fun savingNew(goalId: Long? = null) = if (goalId == null) "savingEdit" else "savingEdit?$ARG_GOAL_ID=$goalId"
     fun savingEdit(savingId: Long) = "savingEdit?$ARG_SAVING_ID=$savingId"
@@ -85,7 +87,8 @@ fun SafeMoneyNavHost(
                     onAddGoal = { navController.navigate(Routes.goalEdit()) },
                     onOpenGoal = { navController.navigate(Routes.goalDetail(it)) },
                     onAddSaving = { navController.navigate(Routes.savingNew()) },
-                    onOpenStats = { navController.navigate(Routes.STATS) },
+                    onOpenStats = { navController.navigate(Routes.stats()) },
+                    onOpenReview = { navController.navigate(Routes.stats(it)) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenRecords = { navController.navigate(Routes.RECORDS) },
                 )
@@ -93,7 +96,16 @@ fun SafeMoneyNavHost(
             composable(Routes.RECORDS) {
                 RecordsScreen(onBack = back, onOpenSaving = { navController.navigate(Routes.savingEdit(it)) })
             }
-            composable(Routes.STATS) {
+            composable(
+                Routes.STATS,
+                arguments = listOf(
+                    navArgument(Routes.ARG_MONTH) {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                ),
+            ) {
                 StatsScreen(onBack = back)
             }
             composable(Routes.SETTINGS) {

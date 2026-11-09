@@ -22,11 +22,11 @@ import io.github.corgi8cm.safemoney.ui.stats.StatsViewModel
 /** 所有 ViewModel 的建構方式（手動相依注入）。導覽參數透過 SavedStateHandle 傳入。 */
 object AppViewModelProvider {
     val Factory = viewModelFactory {
-        initializer { HomeViewModel(repository(), app().updateChecker) }
+        initializer { HomeViewModel(repository(), app().updateChecker, app().reviewCardSettings) }
         initializer { GoalEditViewModel(createSavedStateHandle(), repository()) }
         initializer { GoalDetailViewModel(createSavedStateHandle(), repository()) }
         initializer { SavingEditViewModel(createSavedStateHandle(), repository()) }
-        initializer { StatsViewModel(repository()) }
+        initializer { StatsViewModel(createSavedStateHandle(), repository()) }
         initializer { SettingsViewModel(app(), repository()) }
         initializer { QuickReasonsViewModel(repository()) }
         initializer { RecordsViewModel(repository()) }

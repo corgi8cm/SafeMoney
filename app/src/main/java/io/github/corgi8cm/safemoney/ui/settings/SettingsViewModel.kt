@@ -12,6 +12,7 @@ import io.github.corgi8cm.safemoney.data.backup.BackupCodec
 import io.github.corgi8cm.safemoney.data.backup.BackupData
 import io.github.corgi8cm.safemoney.data.backup.BackupException
 import io.github.corgi8cm.safemoney.diagnostics.CrashLog
+import io.github.corgi8cm.safemoney.domain.CsvExport
 import io.github.corgi8cm.safemoney.reminder.ReminderConfig
 import io.github.corgi8cm.safemoney.sync.AuthFailedException
 import io.github.corgi8cm.safemoney.sync.GoogleDriveAuth
@@ -167,6 +168,19 @@ class SettingsViewModel(
 
     fun suggestedFileName(today: LocalDate = LocalDate.now()): String =
         "safemoney-backup-${today.format(DateTimeFormatter.BASIC_ISO_DATE)}.json"
+
+    fun csvFileName(): String = CsvExport.fileName(month = null)
+
+    /** 匯出所有紀錄成試算表（CSV）。 */
+    fun exportCsv(uri: Uri) = runBusy {
+        val data = repository.snapshot(null)
+        val text = CsvExport.build(data.savings, data.goals.associate { it.id to it.name })
+        withContext(Dispatchers.IO) {
+            val stream = app.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("無法開啟檔案")
+            stream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+        }
+        message = "已匯出 ${data.savings.size} 筆紀錄"
+    }
 
     fun export(uri: Uri) = runBusy {
         val data = repository.snapshot(appVersion.ifEmpty { null })

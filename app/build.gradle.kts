@@ -15,8 +15,8 @@ android {
         minSdk = 26
         // Google Play 目前要求新 App 至少 targetSdk 36（Android 16）
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.1.0"
+        versionCode = 14
+        versionName = "1.2.0"
     }
 
     // 正式簽章：只在 CI 的 release workflow 透過環境變數提供（金鑰放在 GitHub Secrets，不進 git）。
