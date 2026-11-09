@@ -77,7 +77,8 @@ class IntroAndAccessibilityTest {
     @Test
     fun goalAvatarIsSkippedByScreenReaders() {
         compose.setContent { SafeMoneyTheme { GoalAvatar(name = "外套", emoji = null, color = null, size = 40.dp) } }
-        compose.onNodeWithText("外", useUnmergedTree = true).assertDoesNotExist()
+        // 讀螢幕軟體看到的是合併後的語意樹：圓圈裡的字不應該被唸出來
+        compose.onNodeWithText("外").assertDoesNotExist()
     }
 
     @Test
