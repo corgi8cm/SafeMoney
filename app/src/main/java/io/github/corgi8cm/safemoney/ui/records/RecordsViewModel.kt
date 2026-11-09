@@ -6,6 +6,7 @@ import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
 import io.github.corgi8cm.safemoney.data.db.total
+import io.github.corgi8cm.safemoney.domain.CsvExport
 import io.github.corgi8cm.safemoney.domain.RecordFilter
 import io.github.corgi8cm.safemoney.domain.filterRecords
 import io.github.corgi8cm.safemoney.domain.normalizeReason
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.YearMonth
@@ -38,7 +40,7 @@ data class RecordsUiState(
     val hasAnyRecord: Boolean = false,
 )
 
-class RecordsViewModel(repository: SafeMoneyRepository) : ViewModel() {
+class RecordsViewModel(private val repository: SafeMoneyRepository) : ViewModel() {
     private val _filter = MutableStateFlow(RecordFilter(month = YearMonth.now()))
     val filter: StateFlow<RecordFilter> = _filter.asStateFlow()
 
@@ -53,6 +55,15 @@ class RecordsViewModel(repository: SafeMoneyRepository) : ViewModel() {
 
     fun setReason(reason: String?) {
         _filter.value = _filter.value.copy(reason = reason)
+    }
+
+    fun csvFileName(): String = CsvExport.fileName(_filter.value.month)
+
+    /** 目前篩選出來的紀錄轉成試算表（CSV），以及紀錄筆數。 */
+    suspend fun csvForCurrentFilter(): Pair<String, Int> {
+        val savings = filterRecords(repository.observeAllSavings().first(), _filter.value, { it.saving.date }, { it.saving.reason })
+        val names = repository.goalsSnapshot().associate { it.goal.id to it.goal.name }
+        return CsvExport.build(savings, names) to savings.size
     }
 }
 

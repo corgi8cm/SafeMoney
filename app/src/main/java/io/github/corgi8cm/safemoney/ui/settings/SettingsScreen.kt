@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -58,6 +59,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.corgi8cm.safemoney.SafeMoneyApp
+import io.github.corgi8cm.safemoney.domain.CsvExport
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.display
 import io.github.corgi8cm.safemoney.ui.common.localDateTimeText
@@ -109,6 +112,9 @@ fun SettingsScreen(
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
     ) { uri -> uri?.let(viewModel::export) }
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(CsvExport.MIME_TYPE),
+    ) { uri -> uri?.let(viewModel::exportCsv) }
     val crashLogLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("text/plain"),
     ) { uri -> uri?.let(viewModel::exportCrashLog) }
@@ -276,6 +282,13 @@ fun SettingsScreen(
                 enabled = !viewModel.busy,
                 onClick = { restoreLauncher.launch(BACKUP_MIME_TYPES) },
             )
+            SettingRow(
+                icon = Icons.Filled.Share,
+                title = "匯出試算表",
+                subtitle = "所有紀錄存成 CSV，可以用 Excel 或 Google 試算表打開（不能用來還原）",
+                enabled = !viewModel.busy && counts.savings > 0,
+                onClick = { csvLauncher.launch(viewModel.csvFileName()) },
+            )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionTitle("錯誤紀錄")
             Text(
@@ -315,6 +328,15 @@ fun SettingsScreen(
                 subtitle = "再看一次新手說明",
                 enabled = true,
                 onClick = onOpenIntro,
+            )
+            val splashSettings = (context.applicationContext as SafeMoneyApp).splashSettings
+            val splashEnabled by splashSettings.enabled.collectAsStateWithLifecycle()
+            ListItem(
+                leadingContent = { Icon(Icons.Filled.Star, contentDescription = null) },
+                headlineContent = { Text("開場動畫") },
+                supportingContent = { Text("打開 App 時顯示一句省錢小語") },
+                trailingContent = { Switch(checked = splashEnabled, onCheckedChange = null) },
+                modifier = Modifier.clickable { splashSettings.setEnabled(!splashEnabled) },
             )
             if (viewModel.updatesSupported) {
                 val updatesEnabled by viewModel.updatesEnabled.collectAsStateWithLifecycle()

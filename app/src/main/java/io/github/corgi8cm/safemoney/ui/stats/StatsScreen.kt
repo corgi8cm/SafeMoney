@@ -1,6 +1,20 @@
 package io.github.corgi8cm.safemoney.ui.stats
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import io.github.corgi8cm.safemoney.ui.common.LocalAppMessenger
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,8 +66,12 @@ fun StatsScreen(
     viewModel: StatsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val mode by viewModel.mode.collectAsStateWithLifecycle()
+    val review by viewModel.review.collectAsStateWithLifecycle()
+    val messenger = LocalAppMessenger.current
 
     Scaffold(
+        snackbarHost = { SnackbarHost(messenger.hostState) },
         topBar = {
             TopAppBar(
                 title = { Text("省錢統計") },
@@ -75,10 +93,80 @@ fun StatsScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             ) {
-                OverviewCard(state)
-                TrendCard(state)
-                if (state.reasons.isNotEmpty()) ReasonsCard(state)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(StatsMode.OVERVIEW to "總覽", StatsMode.MONTH to "每月回顧", StatsMode.YEAR to "每年回顧")
+                        .forEach { (value, label) ->
+                            FilterChip(selected = mode == value, onClick = { viewModel.setMode(value) }, label = { Text(label) })
+                        }
+                }
+                val current = review
+                if (mode == StatsMode.OVERVIEW || current == null) {
+                    OverviewCard(state)
+                    TrendCard(state)
+                    if (state.reasons.isNotEmpty()) ReasonsCard(state)
+                } else {
+                    ReviewSection(current, onPrevious = viewModel::previous, onNext = viewModel::next, onError = messenger::show)
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun ReviewSection(
+    state: ReviewUiState,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onError: (String) -> Unit,
+) {
+    val review = state.review
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPrevious, enabled = state.canPrevious) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "前一段")
+        }
+        Text(
+            review.period.label,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onNext, enabled = state.canNext) {
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "下一段")
+        }
+    }
+
+    // 存成圖片時，畫下這一塊（含外圍的底色）
+    val layer = rememberGraphicsLayer()
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    Box(
+        Modifier
+            .drawWithContent {
+                layer.record { this@drawWithContent.drawContent() }
+                drawLayer(layer)
+            }
+            .reviewImageBackground(MaterialTheme.colorScheme.background),
+    ) {
+        ReviewCard(review)
+    }
+    if (!review.isEmpty) {
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    try {
+                        val bitmap = layer.toImageBitmap().asAndroidBitmap()
+                        shareReviewImage(context, bitmap, "分享${review.period.label}回顧")
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        onError("無法產生圖片：${e.message ?: "未知錯誤"}")
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Icon(Icons.Filled.Share, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("存成圖片分享")
         }
     }
 }

@@ -33,6 +33,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import java.time.YearMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -70,10 +72,12 @@ fun HomeScreen(
     onOpenStats: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenRecords: () -> Unit,
+    onOpenReview: (YearMonth) -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
+    val monthlyCard by viewModel.monthlyCard.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     var showArchived by rememberSaveable { mutableStateOf(false) }
     val intro = (LocalContext.current.applicationContext as SafeMoneyApp).introSettings
@@ -129,6 +133,15 @@ fun HomeScreen(
                         )
                     }
                 }
+                monthlyCard?.let { card ->
+                    item(key = "monthly-review") {
+                        MonthlyReviewCard(
+                            card = card,
+                            onOpen = { onOpenReview(card.month) },
+                            onDismiss = { viewModel.dismissMonthlyCard(card.month) },
+                        )
+                    }
+                }
                 state.summary?.takeIf { it.goalCount > 0 }?.let { summary ->
                     item(key = "summary") { SummaryCard(summary, onClick = onOpenStats) }
                 }
@@ -159,6 +172,31 @@ fun HomeScreen(
                         items(state.archived, key = { it.goal.id }) { GoalCard(it, onClick = { onOpenGoal(it.goal.id) }) }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyReviewCard(card: MonthlyCard, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    Card(
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        ),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "${card.month.monthValue} 月回顧：省了 ${formatMoney(card.total)}",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text("點這裡看詳細", style = MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(Icons.Filled.Close, contentDescription = "收起${card.month.monthValue} 月回顧")
             }
         }
     }

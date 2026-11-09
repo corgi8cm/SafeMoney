@@ -18,6 +18,16 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import io.github.corgi8cm.safemoney.domain.CsvExport
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -57,6 +67,27 @@ fun RecordsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val filter by viewModel.filter.collectAsStateWithLifecycle()
+    val messenger = LocalAppMessenger.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val csvLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(CsvExport.MIME_TYPE),
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val (text, count) = viewModel.csvForCurrentFilter()
+                    withContext(Dispatchers.IO) {
+                        val stream = context.contentResolver.openOutputStream(uri, "wt") ?: throw IOException("無法開啟檔案")
+                        stream.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+                    }
+                    messenger.show("已匯出 $count 筆紀錄")
+                } catch (e: IOException) {
+                    messenger.show("匯出失敗：${e.message ?: "未知錯誤"}")
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -65,6 +96,13 @@ fun RecordsScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                    }
+                },
+                actions = {
+                    if (state.rows.isNotEmpty()) {
+                        IconButton(onClick = { csvLauncher.launch(viewModel.csvFileName()) }) {
+                            Icon(Icons.Filled.Share, contentDescription = "把目前篩選的紀錄匯出成試算表")
+                        }
                     }
                 },
             )
