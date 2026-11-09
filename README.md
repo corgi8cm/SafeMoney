@@ -37,6 +37,11 @@ App 只能看到自己建立的那個檔案；多支手機登入同一個帳號�
    - 正式版 `io.github.corgi8cm.safemoney`：正式簽章金鑰的 SHA-1
    - 測試版 `io.github.corgi8cm.safemoney.debug`：`app/debug.keystore` 的 SHA-1（`25:D3:5C:E7:94:BA:2D:90:A7:21:DE:80:B5:05:BE:66:C8:25:EB:E9`）
 
+## 隱私權與上架資料
+
+- 隱私權政策：[`docs/privacy.md`](docs/privacy.md)（開啟 GitHub Pages 後網址為 https://corgi8cm.github.io/SafeMoney/privacy）
+- Google Play 上架用：[`store/`](store/) 裡有商店文字、資料安全性表單內容、圖示與主題圖片、[上架步驟清單](store/release-checklist.md)
+
 ## 發佈新版本
 
 1. 在 PR 中把 `app/build.gradle.kts` 的 `versionCode` +1、`versionName` 改成新版號，合併到 `main`

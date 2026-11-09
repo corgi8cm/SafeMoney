@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -52,6 +53,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import io.github.corgi8cm.safemoney.reminder.ReminderNotifier
 import java.time.LocalTime
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -72,6 +74,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val counts by viewModel.counts.collectAsStateWithLifecycle()
+    val uriHandler = LocalUriHandler.current
     val snackbar = remember { SnackbarHostState() }
     val reminder by viewModel.reminder.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -322,6 +325,13 @@ fun SettingsScreen(
                     onClick = viewModel::checkUpdateNow,
                 )
             }
+            SettingRow(
+                icon = Icons.Filled.Lock,
+                title = "隱私權政策",
+                subtitle = "資料存在哪裡、會不會連網路",
+                enabled = true,
+                onClick = { uriHandler.openUri(PRIVACY_POLICY_URL) },
+            )
         }
     }
 
@@ -421,3 +431,5 @@ private fun SettingRow(
         modifier = Modifier.clickable(enabled = enabled, onClick = onClick),
     )
 }
+
+const val PRIVACY_POLICY_URL = "https://corgi8cm.github.io/SafeMoney/privacy"
