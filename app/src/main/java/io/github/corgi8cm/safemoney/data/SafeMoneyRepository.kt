@@ -8,6 +8,7 @@ import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.DEFAULT_QUICK_REASONS
 import io.github.corgi8cm.safemoney.data.db.Deletion
 import io.github.corgi8cm.safemoney.data.db.QuickReason
+import io.github.corgi8cm.safemoney.data.db.RecurringSaving
 import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import io.github.corgi8cm.safemoney.data.db.Saving
 import io.github.corgi8cm.safemoney.data.db.SavingAllocation
@@ -15,12 +16,14 @@ import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
 import io.github.corgi8cm.safemoney.domain.AllocationInput
 import io.github.corgi8cm.safemoney.domain.Allocations
 import io.github.corgi8cm.safemoney.domain.NearestGoal
+import io.github.corgi8cm.safemoney.domain.Recurrence
 import io.github.corgi8cm.safemoney.domain.Summary
 import io.github.corgi8cm.safemoney.sync.SyncAllocation
 import io.github.corgi8cm.safemoney.sync.SyncDeletion
 import io.github.corgi8cm.safemoney.sync.SyncDoc
 import io.github.corgi8cm.safemoney.sync.SyncGoal
 import io.github.corgi8cm.safemoney.sync.SyncReason
+import io.github.corgi8cm.safemoney.sync.SyncRecurring
 import io.github.corgi8cm.safemoney.sync.SyncSaving
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
@@ -42,6 +45,7 @@ class SafeMoneyRepository(
     private val savingDao = db.savingDao()
     private val reasonDao = db.quickReasonDao()
     private val deletionDao = db.deletionDao()
+    private val recurringDao = db.recurringDao()
 
     // ---- 讀取 ----
 
@@ -267,6 +271,134 @@ class SafeMoneyRepository(
         }
     }
 
+    // ---- 定期省錢 ----
+
+    fun observeRecurring(): Flow<List<RecurringSaving>> = recurringDao.observeAll()
+
+    suspend fun getRecurring(id: Long): RecurringSaving? = recurringDao.getById(id)
+
+    /** 有沒有還沒回本（而且沒封存）的目標。 */
+    suspend fun hasActiveGoal(): Boolean = goalDao.getAllWithSaved().any { it.goal.status == GoalStatus.ACTIVE }
+
+    suspend fun addRecurring(
+        reason: String,
+        amount: Long,
+        days: Int,
+        startDate: LocalDate,
+        endDate: LocalDate?,
+    ): Long = db.withTransaction {
+        Recurrence.validate(reason, amount, days, startDate, endDate, LocalDate.now(clock), maxReasonLength = MAX_REASON_LENGTH)
+        require(hasActiveGoal()) { "要先有還沒回本的目標，才能設定定期省錢" }
+        val now = clock.instant()
+        recurringDao.insert(
+            RecurringSaving(
+                reason = reason.trim(),
+                amount = amount,
+                days = days,
+                startDate = startDate,
+                endDate = endDate,
+                createdAt = now,
+                updatedAt = now,
+            )
+        )
+    }
+
+    /**
+     * 修改設定。已經開始的設定不能改開始日（[startDate] 會被忽略）；已經記下的紀錄不受影響。
+     */
+    suspend fun updateRecurring(
+        id: Long,
+        reason: String,
+        amount: Long,
+        days: Int,
+        startDate: LocalDate,
+        endDate: LocalDate?,
+    ) {
+        db.withTransaction {
+            val existing = requireNotNull(recurringDao.getById(id)) { "找不到這個定期省錢" }
+            val today = LocalDate.now(clock)
+            val started = existing.startDate <= today
+            val start = if (started) existing.startDate else startDate
+            Recurrence.validate(reason, amount, days, start, endDate, today, allowPastStart = started, maxReasonLength = MAX_REASON_LENGTH)
+            recurringDao.update(
+                existing.copy(
+                    reason = reason.trim(),
+                    amount = amount,
+                    days = days,
+                    startDate = start,
+                    endDate = endDate,
+                    updatedAt = clock.instant(),
+                )
+            )
+        }
+    }
+
+    /** 移除設定：已經記下的紀錄保留，之後不再跳通知。@return 刪除前的內容，給「復原」用 */
+    suspend fun deleteRecurring(id: Long): RecurringSaving? = db.withTransaction {
+        val existing = recurringDao.getById(id) ?: return@withTransaction null
+        deletionDao.insertAll(listOf(Deletion(existing.uid, Deletion.RECURRING, clock.instant())))
+        recurringDao.delete(id)
+        existing
+    }
+
+    suspend fun undoDeleteRecurring(rule: RecurringSaving) {
+        db.withTransaction {
+            if (recurringDao.getById(rule.id) != null) return@withTransaction
+            recurringDao.insert(rule.copy(updatedAt = clock.instant()))
+            clearDeletions(listOf(rule.uid))
+        }
+    }
+
+    /**
+     * 使用者關掉定期省錢的通知：把到 [today] 為止到期的日子全部記下來。
+     *
+     * 每一筆都照「一項一項省回來」分配（最早建立、還沒回本的目標先補滿，超出的給下一個）。
+     * 已經記過（另一支手機同步過來）或被使用者刪掉的那一天不會再記。
+     * 沒有任何還沒回本的目標時不記，並移除所有定期省錢設定。
+     */
+    suspend fun recordPendingRecurring(today: LocalDate = LocalDate.now(clock)): RecurringRecordResult =
+        db.withTransaction {
+            val rules = recurringDao.getAll()
+            val pending = Recurrence.pending(rules, today)
+            if (pending.isEmpty()) return@withTransaction RecurringRecordResult.NothingDue
+            val now = clock.instant()
+            val active = goalDao.getAllWithSaved()
+                .filter { it.goal.status == GoalStatus.ACTIVE }
+                .sortedWith(compareBy<GoalWithSaved> { it.goal.createdAt }.thenBy { it.goal.id })
+            if (active.isEmpty()) {
+                deletionDao.insertAll(rules.map { Deletion(it.uid, Deletion.RECURRING, now) })
+                recurringDao.deleteAll()
+                return@withTransaction RecurringRecordResult.RemovedNoGoals(rules.size)
+            }
+
+            val remaining = LinkedHashMap<Long, Long>()
+            active.forEach { remaining[it.goal.id] = it.goal.amount - it.saved }
+            val touched = LinkedHashSet<Long>()
+            var count = 0
+            var total = 0L
+            for (item in pending) {
+                val uid = Recurrence.savingUid(item.rule.uid, item.date)
+                if (savingDao.countByUid(uid) > 0 || deletionDao.countByUid(uid) > 0) continue
+                val parts = Allocations.fillInOrder(item.rule.amount, remaining.map { it.key to it.value })
+                val at = Recurrence.recordedAt(item.date, clock.zone)
+                val savingId = savingDao.insertSaving(
+                    Saving(reason = item.rule.reason, date = item.date, createdAt = at, uid = uid, updatedAt = at)
+                )
+                savingDao.insertAllocations(parts.map { SavingAllocation(savingId, it.goalId, it.amount) })
+                parts.forEach {
+                    remaining[it.goalId] = remaining.getValue(it.goalId) - it.amount
+                    touched += it.goalId
+                }
+                count++
+                total += item.rule.amount
+            }
+            for (rule in rules) {
+                val last = pending.lastOrNull { it.rule.id == rule.id }?.date ?: continue
+                recurringDao.update(rule.copy(handledThrough = last, updatedAt = now))
+            }
+            RecurringRecordResult.Recorded(count, total, refreshCompletion(touched))
+        }
+
     // ---- 快捷原因 ----
 
     /** 記錄頁用：最近 [USAGE_WINDOW_DAYS] 天用得越多越前面。 */
@@ -344,6 +476,7 @@ class SafeMoneyRepository(
             goals = goalDao.getAll(),
             savings = savingDao.getAllWithAllocations(),
             quickReasons = reasonDao.getAll().map { it.text },
+            recurring = recurringDao.getAll(),
         )
     }
 
@@ -372,6 +505,16 @@ class SafeMoneyRepository(
             refreshCompletion(data.goals.map { it.id })
             // 舊版備份檔沒有快捷原因，這時保留手機上目前的
             data.quickReasons?.let { replaceQuickReasons(it) }
+            // 1.1.0 以前的備份檔沒有定期省錢，這時也保留手機上目前的
+            data.recurring?.let { rules ->
+                val keep = rules.map { it.uid }.toSet()
+                deletionDao.insertAll(
+                    recurringDao.getAll().filter { it.uid !in keep }.map { Deletion(it.uid, Deletion.RECURRING, now) }
+                )
+                clearDeletions(keep.toList())
+                recurringDao.deleteAll()
+                recurringDao.insertAll(rules)
+            }
         }
     }
 
@@ -413,6 +556,19 @@ class SafeMoneyRepository(
                 )
             },
             quickReasons = reasonDao.getAll().map { SyncReason(it.uid, it.text, it.position, it.updatedAt.toEpochMilli()) },
+            recurring = recurringDao.getAll().map { r ->
+                SyncRecurring(
+                    uid = r.uid,
+                    reason = r.reason,
+                    amount = r.amount,
+                    days = r.days,
+                    startDate = r.startDate.toString(),
+                    endDate = r.endDate?.toString(),
+                    handledThrough = r.handledThrough?.toString(),
+                    createdAt = r.createdAt.toEpochMilli(),
+                    updatedAt = r.updatedAt.toEpochMilli(),
+                )
+            },
             deletions = deletionDao.getAll().map { SyncDeletion(it.uid, it.entity, it.deletedAt.toEpochMilli()) },
         ).normalized()
     }
@@ -495,6 +651,27 @@ class SafeMoneyRepository(
             }
         )
 
+        // 定期省錢：不在結果裡的刪掉，其餘依 uid 新增或更新（保留本機 id）
+        val localRules = recurringDao.getAll().associateBy { it.uid }
+        val keepRules = doc.recurring.map { it.uid }.toSet()
+        localRules.values.filter { it.uid !in keepRules }.forEach { recurringDao.delete(it.id) }
+        for (r in doc.recurring) {
+            val existing = localRules[r.uid]
+            val entity = RecurringSaving(
+                id = existing?.id ?: 0,
+                reason = r.reason,
+                amount = r.amount,
+                days = r.days,
+                startDate = LocalDate.parse(r.startDate),
+                endDate = r.endDate?.let(LocalDate::parse),
+                handledThrough = r.handledThrough?.let(LocalDate::parse),
+                createdAt = Instant.ofEpochMilli(r.createdAt),
+                uid = r.uid,
+                updatedAt = Instant.ofEpochMilli(r.updatedAt),
+            )
+            if (existing == null) recurringDao.insert(entity) else recurringDao.update(entity)
+        }
+
         val localDeletions = deletionDao.getAll().map { it.uid }
         clearDeletions(localDeletions)
         deletionDao.insertAll(doc.deletions.map { Deletion(it.uid, it.entity, Instant.ofEpochMilli(it.deletedAt)) })
@@ -566,3 +743,15 @@ data class DeletedGoal(val goal: Goal, val savings: List<SavingWithAllocations>)
 data class SaveResult(val savingId: Long, val completedGoalIds: List<Long>)
 
 data class TransferResult(val transferred: Long, val completedGoalIds: List<Long>)
+
+/** 關掉定期省錢通知後的結果。 */
+sealed interface RecurringRecordResult {
+    /** 沒有到期的（例如另一支手機已經記過）。 */
+    data object NothingDue : RecurringRecordResult
+
+    /** 記下了 [count] 筆，共 [total] 元；[completedGoalIds] 是因此剛回本的目標。 */
+    data class Recorded(val count: Int, val total: Long, val completedGoalIds: List<Long>) : RecurringRecordResult
+
+    /** 所有目標都已經回本，沒有記，並移除了 [removed] 個定期省錢設定。 */
+    data class RemovedNoGoals(val removed: Int) : RecurringRecordResult
+}

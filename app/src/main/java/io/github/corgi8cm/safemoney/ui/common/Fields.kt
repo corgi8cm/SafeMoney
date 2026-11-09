@@ -65,7 +65,10 @@ fun MoneyField(
     )
 }
 
-/** 點一下就跳出日曆選日期，不能選未來的日子。 */
+/**
+ * 點一下就跳出日曆選日期。
+ * 預設不能選未來的日子；有 [notBefore] 時反過來，只能選那天（含）以後的日子。
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DateField(
@@ -73,6 +76,7 @@ fun DateField(
     onDateChange: (LocalDate) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    notBefore: LocalDate? = null,
 ) {
     var showPicker by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
@@ -93,10 +97,12 @@ fun DateField(
 
     if (showPicker) {
         val todayMillis = LocalDate.now().toPickerMillis()
+        val minMillis = notBefore?.toPickerMillis()
         val state = rememberDatePickerState(
             initialSelectedDateMillis = date.toPickerMillis(),
             selectableDates = object : SelectableDates {
-                override fun isSelectableDate(utcTimeMillis: Long): Boolean = utcTimeMillis <= todayMillis
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    if (minMillis != null) utcTimeMillis >= minMillis else utcTimeMillis <= todayMillis
             },
         )
         DatePickerDialog(

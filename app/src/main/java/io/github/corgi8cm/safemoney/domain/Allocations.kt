@@ -12,6 +12,33 @@ object Allocations {
     }
 
     /**
+     * 「一項一項省回來」：從排在最前面的目標開始，補滿它還差的金額，超出的再給下一個。
+     * 全部補滿還有剩，就算在最後一個目標上（之後可以轉給新的目標）。
+     *
+     * @param remaining 依順序列出「目標 → 還差多少」，通常只放進行中的目標
+     * @return 空清單表示沒有可以分配的目標
+     */
+    fun fillInOrder(total: Long, remaining: List<Pair<Long, Long>>): List<AllocationInput> {
+        require(total > 0) { "金額必須大於 0" }
+        if (remaining.isEmpty()) return emptyList()
+        val result = LinkedHashMap<Long, Long>()
+        var left = total
+        for ((goalId, need) in remaining) {
+            if (left == 0L) break
+            val take = minOf(left, need.coerceAtLeast(0))
+            if (take > 0) {
+                result[goalId] = (result[goalId] ?: 0) + take
+                left -= take
+            }
+        }
+        if (left > 0) {
+            val last = remaining.last().first
+            result[last] = (result[last] ?: 0) + left
+        }
+        return result.map { (goalId, amount) -> AllocationInput(goalId, amount) }
+    }
+
+    /**
      * 把 [total] 平均分給 [goalIds]，無法整除的餘數從第一個目標開始各多分 1 元。
      * 例：100 元分 3 個目標 → 34、33、33。
      */

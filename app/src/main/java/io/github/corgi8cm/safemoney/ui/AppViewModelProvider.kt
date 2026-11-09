@@ -12,6 +12,9 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalEditViewModel
 import io.github.corgi8cm.safemoney.ui.home.HomeViewModel
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditViewModel
 import io.github.corgi8cm.safemoney.ui.records.RecordsViewModel
+import io.github.corgi8cm.safemoney.ui.recurring.RecurringEditViewModel
+import io.github.corgi8cm.safemoney.ui.recurring.RecurringListViewModel
+import io.github.corgi8cm.safemoney.ui.recurring.RecurringPromptViewModel
 import io.github.corgi8cm.safemoney.ui.settings.QuickReasonsViewModel
 import io.github.corgi8cm.safemoney.ui.settings.SettingsViewModel
 import io.github.corgi8cm.safemoney.ui.stats.StatsViewModel
@@ -27,6 +30,9 @@ object AppViewModelProvider {
         initializer { SettingsViewModel(app(), repository()) }
         initializer { QuickReasonsViewModel(repository()) }
         initializer { RecordsViewModel(repository()) }
+        initializer { RecurringListViewModel(repository()) }
+        initializer { RecurringEditViewModel(createSavedStateHandle(), repository()) }
+        initializer { RecurringPromptViewModel(repository()) }
     }
 }
 

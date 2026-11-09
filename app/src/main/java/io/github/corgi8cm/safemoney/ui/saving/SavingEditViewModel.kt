@@ -55,6 +55,13 @@ class SavingEditViewModel(
     var splitMode by mutableStateOf(false)
         private set
 
+    /**
+     * 新增紀錄、而且使用者還沒自己選目標時為 true：金額比第一個目標還差的多，超出的自動分給下一個。
+     * 使用者一動目標或拆分金額，就交給使用者自己決定。
+     */
+    var autoAllocate by mutableStateOf(!isEdit && presetGoalId == null)
+        private set
+
     /** 拆分模式下勾選的目標 → 金額文字。 */
     val splitAmounts = mutableStateMapOf<Long, String>()
 
@@ -98,12 +105,45 @@ class SavingEditViewModel(
         }
     }
 
+    fun onAmountChange(text: String) {
+        amountText = text
+        if (autoAllocate) applyAutoAllocation()
+    }
+
+    fun selectGoal(goalId: Long) {
+        autoAllocate = false
+        selectedGoalId = goalId
+    }
+
+    fun setSplitAmount(goalId: Long, text: String) {
+        autoAllocate = false
+        splitAmounts[goalId] = text
+    }
+
+    /** 依「一項一項省回來」的順序自動填好分配（只看進行中的目標）。 */
+    private fun applyAutoAllocation() {
+        val total = SavingForm.parseAmount(amountText) ?: return
+        val active = goals.value.filter { it.goal.status == GoalStatus.ACTIVE }
+        val parts = Allocations.fillInOrder(total, active.map { it.goal.id to (it.goal.amount - it.saved) })
+        if (parts.isEmpty()) return
+        if (parts.size == 1) {
+            splitMode = false
+            splitAmounts.clear()
+            selectedGoalId = parts.single().goalId
+        } else {
+            splitMode = true
+            splitAmounts.clear()
+            parts.forEach { splitAmounts[it.goalId] = it.amount.toString() }
+        }
+    }
+
     /** 拆分模式中勾選的目標，依畫面上的順序。 */
     fun splitParts(): List<Pair<Long, String>> =
         goals.value.mapNotNull { row -> splitAmounts[row.goal.id]?.let { row.goal.id to it } }
 
     fun setSplit(enabled: Boolean) {
         if (enabled == splitMode) return
+        autoAllocate = false
         error = null
         if (enabled) {
             splitAmounts.clear()
@@ -116,10 +156,12 @@ class SavingEditViewModel(
     }
 
     fun toggleSplitGoal(goalId: Long) {
+        autoAllocate = false
         if (splitAmounts.containsKey(goalId)) splitAmounts.remove(goalId) else splitAmounts[goalId] = ""
     }
 
     fun splitEvenly() {
+        autoAllocate = false
         val total = SavingForm.parseAmount(amountText)
         val ids = splitParts().map { it.first }
         error = when {

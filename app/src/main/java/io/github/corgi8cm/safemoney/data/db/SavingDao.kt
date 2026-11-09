@@ -22,6 +22,9 @@ interface SavingDao {
     @Query("SELECT COUNT(*) FROM saving WHERE date = :date")
     suspend fun countOnDate(date: java.time.LocalDate): Int
 
+    @Query("SELECT COUNT(*) FROM saving WHERE uid = :uid")
+    suspend fun countByUid(uid: String): Int
+
     @Query("DELETE FROM saving")
     suspend fun deleteAll()
 

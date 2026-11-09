@@ -112,4 +112,35 @@ class MigrationTest {
             db.close()
         }
     }
+
+    @Test
+    fun migrate3To4AddsEmptyRecurringTable() = runTest {
+        val day = LocalDate.of(2026, 11, 1).toEpochDay()
+        val created = 1_762_000_000_000L
+        helper.createDatabase(name, 3).apply {
+            execSQL(
+                "INSERT INTO goal (id, name, amount, purchaseDate, note, color, status, createdAt, completedAt, emoji, uid, updatedAt) " +
+                    "VALUES (1, '大衣', 7000, $day, NULL, NULL, 'ACTIVE', $created, NULL, NULL, 'g1', $created)"
+            )
+            execSQL("INSERT INTO saving (id, reason, date, createdAt, uid, updatedAt) VALUES (1, '沒買飲料', $day, $created, 's1', $created)")
+            execSQL("INSERT INTO saving_allocation (savingId, goalId, amount) VALUES (1, 1, 60)")
+            close()
+        }
+
+        helper.runMigrationsAndValidate(name, 4, true).close()
+
+        val db = Room.databaseBuilder(
+            ApplicationProvider.getApplicationContext(),
+            SafeMoneyDatabase::class.java,
+            name,
+        ).addMigrations(*MANUAL_MIGRATIONS).allowMainThreadQueries().build()
+        try {
+            val repo = SafeMoneyRepository(db)
+            assertEquals(60, repo.observeGoals().first().single().saved)
+            assertEquals("s1", repo.observeAllSavings().first().single().saving.uid)
+            assertTrue(repo.observeRecurring().first().isEmpty())
+        } finally {
+            db.close()
+        }
+    }
 }

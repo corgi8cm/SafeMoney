@@ -13,6 +13,9 @@ interface DeletionDao {
     @Query("DELETE FROM deletion WHERE uid IN (:uids)")
     suspend fun deleteByUids(uids: List<String>)
 
+    @Query("SELECT COUNT(*) FROM deletion WHERE uid = :uid")
+    suspend fun countByUid(uid: String): Int
+
     @Query("SELECT * FROM deletion ORDER BY deletedAt")
     suspend fun getAll(): List<Deletion>
 }

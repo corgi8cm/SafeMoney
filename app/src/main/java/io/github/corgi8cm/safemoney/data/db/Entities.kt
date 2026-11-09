@@ -76,8 +76,32 @@ data class Deletion(
         const val GOAL = "goal"
         const val SAVING = "saving"
         const val QUICK_REASON = "quick_reason"
+        const val RECURRING = "recurring_saving"
     }
 }
+
+/**
+ * 定期省錢（例：平日不買咖啡，每次 60 元）。DB 第 4 版新增。
+ *
+ * 排定的日子一開始就算「到期」；App 內會跳出通知，使用者關掉通知時才真的記下來，
+ * 並把 [handledThrough] 往後推。移除設定時，已經記下的紀錄保留。
+ */
+@Entity(tableName = "recurring_saving", indices = [Index(value = ["uid"], unique = true)])
+data class RecurringSaving(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val reason: String,
+    val amount: Long,
+    /** 星期幾要記：週一是第 0 個位元，週日是第 6 個（見 Recurrence）。 */
+    val days: Int,
+    val startDate: LocalDate,
+    /** 沒有結束日時為 null（一直持續）。 */
+    val endDate: LocalDate? = null,
+    /** 已經記到哪一天（包含當天）；還沒記過時為 null。 */
+    val handledThrough: LocalDate? = null,
+    val createdAt: Instant,
+    val uid: String = newUid(),
+    val updatedAt: Instant,
+)
 
 /** 一筆省錢紀錄分給某個目標的金額。一筆紀錄可拆給多個目標。 */
 @Entity(
