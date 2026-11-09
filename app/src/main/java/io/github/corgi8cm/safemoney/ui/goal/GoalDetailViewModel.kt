@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 data class GoalDetailUiState(
@@ -85,9 +86,11 @@ class GoalDetailViewModel(
     fun delete(onDeleted: (message: String, undo: suspend () -> Unit) -> Unit) {
         val repo = repository
         // 刪除後畫面會立刻離開、ViewModel 跟著結束；NonCancellable 確保還是會送出「復原」
-        viewModelScope.launch(NonCancellable) {
-            val deleted = repo.deleteGoal(goalId) ?: return@launch
-            onDeleted("已刪除「${deleted.goal.name}」") { repo.undoDeleteGoal(deleted) }
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                val deleted = repo.deleteGoal(goalId) ?: return@withContext
+                onDeleted("已刪除「${deleted.goal.name}」") { repo.undoDeleteGoal(deleted) }
+            }
         }
     }
 
