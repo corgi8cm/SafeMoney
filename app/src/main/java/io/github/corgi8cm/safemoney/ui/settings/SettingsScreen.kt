@@ -71,6 +71,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onManageReasons: () -> Unit,
     onOpenIntro: () -> Unit,
+    onOpenRecurring: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val counts by viewModel.counts.collectAsStateWithLifecycle()
@@ -214,6 +215,13 @@ fun SettingsScreen(
                 subtitle = "新增、修改或刪除記一筆時的常用原因",
                 enabled = true,
                 onClick = onManageReasons,
+            )
+            SettingRow(
+                icon = Icons.Filled.DateRange,
+                title = "定期省錢",
+                subtitle = "例如平日不買咖啡，每天自動跳出通知幫你記一筆",
+                enabled = true,
+                onClick = onOpenRecurring,
             )
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             SectionTitle("每日提醒")

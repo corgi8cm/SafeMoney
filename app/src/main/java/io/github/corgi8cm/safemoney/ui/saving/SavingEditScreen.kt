@@ -120,7 +120,7 @@ fun SavingEditScreen(
         ) {
             MoneyField(
                 value = viewModel.amountText,
-                onValueChange = { viewModel.amountText = it },
+                onValueChange = viewModel::onAmountChange,
                 label = "省下多少",
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -162,9 +162,16 @@ fun SavingEditScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else if (viewModel.splitMode) {
+                if (viewModel.autoAllocate) {
+                    Text(
+                        "第一個目標只差一點，超出的部分已經自動分給下一個目標，也可以自己改。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 SplitGoalList(goals, viewModel)
             } else {
-                SingleGoalList(goals, viewModel.selectedGoalId, onSelect = { viewModel.selectedGoalId = it })
+                SingleGoalList(goals, viewModel.selectedGoalId, onSelect = viewModel::selectGoal)
             }
 
             viewModel.error?.let {
@@ -242,7 +249,7 @@ private fun SplitGoalList(goals: List<GoalWithSaved>, viewModel: SavingEditViewM
                 Spacer(Modifier.width(8.dp))
                 MoneyField(
                     value = viewModel.splitAmounts[id].orEmpty(),
-                    onValueChange = { viewModel.splitAmounts[id] = it },
+                    onValueChange = { viewModel.setSplitAmount(id, it) },
                     label = "金額",
                     enabled = checked,
                     modifier = Modifier.width(130.dp),

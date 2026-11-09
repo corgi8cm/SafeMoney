@@ -63,10 +63,17 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
 val MANUAL_MIGRATIONS = arrayOf(MIGRATION_2_3)
 
 @Database(
-    entities = [Goal::class, Saving::class, SavingAllocation::class, QuickReason::class, Deletion::class],
-    version = 3,
+    entities = [
+        Goal::class, Saving::class, SavingAllocation::class, QuickReason::class, Deletion::class,
+        RecurringSaving::class,
+    ],
+    version = 4,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2, spec = Migration1To2::class)],
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2, spec = Migration1To2::class),
+        // 3 → 4：新增定期省錢的表格，舊資料不用動
+        AutoMigration(from = 3, to = 4),
+    ],
 )
 @TypeConverters(Converters::class)
 abstract class SafeMoneyDatabase : RoomDatabase() {
@@ -74,6 +81,7 @@ abstract class SafeMoneyDatabase : RoomDatabase() {
     abstract fun savingDao(): SavingDao
     abstract fun quickReasonDao(): QuickReasonDao
     abstract fun deletionDao(): DeletionDao
+    abstract fun recurringDao(): RecurringDao
 
     companion object {
         private const val NAME = "safemoney.db"

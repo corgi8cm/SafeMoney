@@ -21,6 +21,9 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalDetailScreen
 import io.github.corgi8cm.safemoney.ui.goal.GoalEditScreen
 import io.github.corgi8cm.safemoney.ui.home.HomeScreen
 import io.github.corgi8cm.safemoney.ui.intro.IntroPager
+import io.github.corgi8cm.safemoney.ui.recurring.RecurringEditScreen
+import io.github.corgi8cm.safemoney.ui.recurring.RecurringListScreen
+import io.github.corgi8cm.safemoney.ui.recurring.RecurringPromptHost
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditScreen
 import io.github.corgi8cm.safemoney.ui.settings.QuickReasonsScreen
 import io.github.corgi8cm.safemoney.ui.settings.SettingsScreen
@@ -29,6 +32,7 @@ import io.github.corgi8cm.safemoney.ui.stats.StatsScreen
 object Routes {
     const val ARG_GOAL_ID = "goalId"
     const val ARG_SAVING_ID = "savingId"
+    const val ARG_RULE_ID = "ruleId"
 
     const val HOME = "home"
     const val STATS = "stats"
@@ -36,6 +40,8 @@ object Routes {
     const val QUICK_REASONS = "quickReasons"
     const val RECORDS = "records"
     const val INTRO = "intro"
+    const val RECURRING = "recurring"
+    const val RECURRING_EDIT = "recurringEdit?$ARG_RULE_ID={$ARG_RULE_ID}"
     const val GOAL_DETAIL = "goalDetail/{$ARG_GOAL_ID}"
     const val GOAL_EDIT = "goalEdit?$ARG_GOAL_ID={$ARG_GOAL_ID}"
     const val SAVING_EDIT = "savingEdit?$ARG_SAVING_ID={$ARG_SAVING_ID}&$ARG_GOAL_ID={$ARG_GOAL_ID}"
@@ -44,6 +50,7 @@ object Routes {
     fun goalEdit(goalId: Long? = null) = if (goalId == null) "goalEdit" else "goalEdit?$ARG_GOAL_ID=$goalId"
     fun savingNew(goalId: Long? = null) = if (goalId == null) "savingEdit" else "savingEdit?$ARG_GOAL_ID=$goalId"
     fun savingEdit(savingId: Long) = "savingEdit?$ARG_SAVING_ID=$savingId"
+    fun recurringEdit(ruleId: Long? = null) = if (ruleId == null) "recurringEdit" else "recurringEdit?$ARG_RULE_ID=$ruleId"
 }
 
 private fun optionalLongArg(name: String) = navArgument(name) {
@@ -94,7 +101,18 @@ fun SafeMoneyNavHost(
                     onBack = back,
                     onManageReasons = { navController.navigate(Routes.QUICK_REASONS) },
                     onOpenIntro = { navController.navigate(Routes.INTRO) },
+                    onOpenRecurring = { navController.navigate(Routes.RECURRING) },
                 )
+            }
+            composable(Routes.RECURRING) {
+                RecurringListScreen(
+                    onBack = back,
+                    onAdd = { navController.navigate(Routes.recurringEdit()) },
+                    onOpen = { navController.navigate(Routes.recurringEdit(it)) },
+                )
+            }
+            composable(Routes.RECURRING_EDIT, arguments = listOf(optionalLongArg(Routes.ARG_RULE_ID))) {
+                RecurringEditScreen(onBack = back)
             }
             composable(Routes.INTRO) {
                 IntroPager(onFinish = back, finishLabel = "完成")
@@ -123,5 +141,7 @@ fun SafeMoneyNavHost(
                 SavingEditScreen(onBack = back, onManageReasons = { navController.navigate(Routes.QUICK_REASONS) })
             }
         }
+        // 定期省錢到期時，不管在哪個畫面都會跳出通知
+        RecurringPromptHost()
     }
 }

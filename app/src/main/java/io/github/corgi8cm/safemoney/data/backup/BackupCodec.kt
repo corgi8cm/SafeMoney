@@ -2,6 +2,7 @@ package io.github.corgi8cm.safemoney.data.backup
 
 import io.github.corgi8cm.safemoney.data.db.Goal
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
+import io.github.corgi8cm.safemoney.data.db.RecurringSaving
 import io.github.corgi8cm.safemoney.data.db.Saving
 import io.github.corgi8cm.safemoney.data.db.SavingAllocation
 import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
@@ -24,11 +25,14 @@ data class BackupData(
     val savings: List<SavingWithAllocations>,
     /** null = 備份檔沒有這項（舊版備份），還原時保留手機上的快捷原因。 */
     val quickReasons: List<String>? = null,
+    /** null = 備份檔沒有這項（1.1.0 以前的備份），還原時保留手機上的定期省錢。 */
+    val recurring: List<RecurringSaving>? = null,
 )
 
 // ---- JSON 檔案格式 ----
 // 日期用 ISO-8601 字串（2026-11-08、2026-11-08T12:00:00Z），方便人看，也不受時區影響。
 // 第 1 版：基本資料。第 2 版：目標與紀錄加上 uid（跨裝置唯一編號）與 updatedAt；讀第 1 版時自動補上。
+// 1.1.0 起第 2 版多了選用的 recurring（定期省錢）。版本號不變，所以 1.0 的 App 仍能匯入（只是忽略這項）。
 
 @Serializable
 internal data class BackupFile(
@@ -39,6 +43,20 @@ internal data class BackupFile(
     val goals: List<GoalJson> = emptyList(),
     val savings: List<SavingJson> = emptyList(),
     val quickReasons: List<String>? = null,
+    val recurring: List<RecurringJson>? = null,
+)
+
+@Serializable
+internal data class RecurringJson(
+    val uid: String,
+    val reason: String,
+    val amount: Long,
+    val days: Int,
+    val startDate: String,
+    val endDate: String? = null,
+    val handledThrough: String? = null,
+    val createdAt: String,
+    val updatedAt: String,
 )
 
 @Serializable
@@ -116,6 +134,19 @@ object BackupCodec {
                 )
             },
             quickReasons = data.quickReasons,
+            recurring = data.recurring?.sortedBy { it.createdAt }?.map { r ->
+                RecurringJson(
+                    uid = r.uid,
+                    reason = r.reason,
+                    amount = r.amount,
+                    days = r.days,
+                    startDate = r.startDate.toString(),
+                    endDate = r.endDate?.toString(),
+                    handledThrough = r.handledThrough?.toString(),
+                    createdAt = r.createdAt.toString(),
+                    updatedAt = r.updatedAt.toString(),
+                )
+            },
         )
         return json.encodeToString(BackupFile.serializer(), file)
     }
@@ -167,12 +198,32 @@ object BackupCodec {
 
         check(savings.map { it.saving.uid }.toSet().size == savings.size) { "紀錄的 uid 重複" }
 
+        val recurring = file.recurring?.map { r ->
+            check(r.uid.isNotBlank()) { "定期省錢沒有 uid" }
+            check(r.reason.isNotBlank()) { "定期省錢沒有原因" }
+            check(r.amount > 0) { "定期省錢「${r.reason}」的金額必須大於 0" }
+            check(r.days in 1..127) { "定期省錢「${r.reason}」的日子不正確" }
+            RecurringSaving(
+                reason = r.reason,
+                amount = r.amount,
+                days = r.days,
+                startDate = parseDate(r.startDate),
+                endDate = r.endDate?.let(::parseDate),
+                handledThrough = r.handledThrough?.let(::parseDate),
+                createdAt = parseInstant(r.createdAt),
+                uid = r.uid,
+                updatedAt = parseInstant(r.updatedAt),
+            )
+        }
+        recurring?.let { list -> check(list.map { it.uid }.toSet().size == list.size) { "定期省錢的 uid 重複" } }
+
         return BackupData(
             exportedAt = parseInstant(file.exportedAt),
             appVersion = file.appVersion,
             goals = goals,
             savings = savings,
             quickReasons = file.quickReasons,
+            recurring = recurring,
         )
     }
 

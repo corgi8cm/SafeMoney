@@ -127,4 +127,24 @@ class SyncMergeTest {
             assertTrue(e.message!!.contains("較新版本"))
         }
     }
+
+    @Test
+    fun recurringKeepsLatestRecordedDayEvenFromOlderVersion() {
+        fun rule(updatedAt: Long, amount: Long, handled: String?) =
+            SyncRecurring("r", "不買咖啡", amount, 31, "2026-11-01", null, handled, createdAt = base, updatedAt = base + updatedAt)
+        // 這支手機改了金額（較新），另一支手機記到比較後面的日子
+        val local = SyncDoc(recurring = listOf(rule(300, 80, "2026-11-05")))
+        val remote = SyncDoc(recurring = listOf(rule(200, 60, "2026-11-08")))
+        val merged = mergeSync(local, remote, now).recurring.single()
+        assertEquals(80, merged.amount)
+        assertEquals("2026-11-08", merged.handledThrough)
+        assertEquals(mergeSync(remote, local, now), mergeSync(local, remote, now))
+    }
+
+    @Test
+    fun deletedRecurringStaysDeleted() {
+        val rule = SyncRecurring("r", "不買咖啡", 60, 127, "2026-11-01", createdAt = base, updatedAt = base + 100)
+        val merged = mergeSync(SyncDoc(recurring = listOf(rule)), SyncDoc(deletions = listOf(gone("r", 200, Deletion.RECURRING))), now)
+        assertTrue(merged.recurring.isEmpty())
+    }
 }

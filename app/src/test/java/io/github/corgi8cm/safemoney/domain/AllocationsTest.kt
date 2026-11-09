@@ -46,4 +46,31 @@ class AllocationsTest {
     fun validateRejectsDuplicateGoal() {
         Allocations.validate(listOf(AllocationInput(1, 10), AllocationInput(1, 20)))
     }
+
+    @Test
+    fun fillInOrderFillsFirstGoalThenNext() {
+        // 外套還差 30，記 100 → 外套 30、耳機 70
+        assertEquals(
+            listOf(AllocationInput(1, 30), AllocationInput(2, 70)),
+            Allocations.fillInOrder(100, listOf(1L to 30L, 2L to 500L)),
+        )
+    }
+
+    @Test
+    fun fillInOrderStaysOnFirstGoalWhenEnough() {
+        assertEquals(listOf(AllocationInput(1, 60)), Allocations.fillInOrder(60, listOf(1L to 30_000L, 2L to 500L)))
+    }
+
+    @Test
+    fun fillInOrderPutsLeftoverOnLastGoal() {
+        assertEquals(
+            listOf(AllocationInput(1, 30), AllocationInput(2, 70)),
+            Allocations.fillInOrder(100, listOf(1L to 30L, 2L to 20L)),
+        )
+    }
+
+    @Test
+    fun fillInOrderWithNoGoalsGivesNothing() {
+        assertEquals(emptyList<AllocationInput>(), Allocations.fillInOrder(100, emptyList()))
+    }
 }

@@ -15,6 +15,7 @@ val TOMBSTONE_RETENTION: Duration = Duration.ofDays(365)
  * 3. 分配給已刪除目標的部分拿掉；一筆紀錄的分配全部被拿掉時，整筆視為刪除。
  * 4. 兩支手機各自新增了同名的快捷原因，只留一個（uid 較小的）。
  * 5. 超過 [TOMBSTONE_RETENTION] 的墓碑清掉。
+ * 6. 定期省錢「已經記到哪一天」取所有版本中最晚的。
  *
  * 同樣的輸入不論順序都得到同樣的結果，所以兩支手機輪流同步最後會一致。
  */
@@ -37,9 +38,15 @@ fun mergeSync(local: SyncDoc, remote: SyncDoc?, now: Instant): SyncDoc {
     val goals = pickLatest(docs.flatMap { it.goals }, { it.uid }, { it.updatedAt })
     var savings = pickLatest(docs.flatMap { it.savings }, { it.uid }, { it.updatedAt })
     var reasons = pickLatest(docs.flatMap { it.quickReasons }, { it.uid }, { it.updatedAt })
+    val allRules = docs.flatMap { it.recurring }
+    val recurring = pickLatest(allRules, { it.uid }, { it.updatedAt }).map { rule ->
+        // 6. 日期字串是 ISO 格式，字串比較就是日期先後
+        val latestHandled = allRules.filter { it.uid == rule.uid }.mapNotNull { it.handledThrough }.maxOrNull()
+        rule.copy(handledThrough = latestHandled)
+    }
 
     // 還活著的資料，不需要它的墓碑
-    val alive = (goals.map { it.uid } + savings.map { it.uid } + reasons.map { it.uid }).toSet()
+    val alive = (goals.map { it.uid } + savings.map { it.uid } + reasons.map { it.uid } + recurring.map { it.uid }).toSet()
     alive.forEach { tombstones.remove(it) }
 
     // 3. 分配給已刪除（或不存在）目標的部分拿掉
@@ -70,5 +77,11 @@ fun mergeSync(local: SyncDoc, remote: SyncDoc?, now: Instant): SyncDoc {
     val cutoff = now.minus(TOMBSTONE_RETENTION).toEpochMilli()
     val deletions = tombstones.values.filter { it.deletedAt >= cutoff }
 
-    return SyncDoc(goals = goals, savings = savings, quickReasons = reasons, deletions = deletions).normalized()
+    return SyncDoc(
+        goals = goals,
+        savings = savings,
+        quickReasons = reasons,
+        deletions = deletions,
+        recurring = recurring,
+    ).normalized()
 }

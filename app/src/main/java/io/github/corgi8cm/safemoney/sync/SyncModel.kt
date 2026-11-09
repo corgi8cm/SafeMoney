@@ -18,6 +18,8 @@ data class SyncDoc(
     val savings: List<SyncSaving> = emptyList(),
     val quickReasons: List<SyncReason> = emptyList(),
     val deletions: List<SyncDeletion> = emptyList(),
+    /** 1.1.0 新增。1.0 的 App 讀到時會忽略（版本號不變，所以還能繼續同步）。 */
+    val recurring: List<SyncRecurring> = emptyList(),
 ) {
     /** 排序過的內容，用來比較「有沒有變」。 */
     fun normalized(): SyncDoc = copy(
@@ -25,6 +27,7 @@ data class SyncDoc(
         savings = savings.map { s -> s.copy(allocations = s.allocations.sortedBy { it.goalUid }) }.sortedBy { it.uid },
         quickReasons = quickReasons.sortedBy { it.uid },
         deletions = deletions.sortedBy { it.uid },
+        recurring = recurring.sortedBy { it.uid },
     )
 
     companion object {
@@ -64,6 +67,20 @@ data class SyncAllocation(val goalUid: String, val amount: Long)
 
 @Serializable
 data class SyncReason(val uid: String, val text: String, val position: Int, val updatedAt: Long)
+
+@Serializable
+data class SyncRecurring(
+    val uid: String,
+    val reason: String,
+    val amount: Long,
+    val days: Int,
+    val startDate: String,
+    val endDate: String? = null,
+    /** 已經記到哪一天；合併時取兩邊較晚的，避免同一天被記兩次。 */
+    val handledThrough: String? = null,
+    val createdAt: Long,
+    val updatedAt: Long,
+)
 
 @Serializable
 data class SyncDeletion(val uid: String, val entity: String, val deletedAt: Long)
