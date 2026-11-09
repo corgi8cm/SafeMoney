@@ -36,7 +36,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
-          gradle-version: "8.11.1"
+          gradle-version: "9.9.0"
 
       - name: Read version
         id: version
@@ -72,7 +72,8 @@ jobs:
           SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: gradle testGithubDebugUnitTest assembleGithubRelease --stacktrace
+        # APK 給 GitHub Releases；AAB（play 版本）是將來上架 Google Play 用的，只當作 artifact 保存
+        run: gradle testGithubDebugUnitTest assembleGithubRelease bundlePlayRelease --stacktrace
 
       - name: Verify APK signature
         run: |
@@ -80,7 +81,8 @@ jobs:
           test -f "$apk" || { echo "::error::Signed APK not found (was it built unsigned?)"; ls -R app/build/outputs/apk; exit 1; }
           build_tools=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
           "$ANDROID_HOME/build-tools/$build_tools/apksigner" verify --print-certs "$apk" | tee signature.txt
-          grep -q "CN=SafeMoney" signature.txt
+          grep -q "certificate DN: .*CN=SafeMoney" signature.txt
+          grep -q "certificate DN: .*O=corgi8cm" signature.txt
           out="SafeMoney-v${{ steps.version.outputs.name }}.apk"
           cp "$apk" "$out"
           echo "APK=$out" >> "$GITHUB_ENV"
@@ -90,6 +92,22 @@ jobs:
         with:
           name: safemoney-release-v${{ steps.version.outputs.name }}
           path: ${{ env.APK }}
+          if-no-files-found: error
+
+      - name: Verify AAB signature
+        run: |
+          aab=app/build/outputs/bundle/playRelease/app-play-release.aab
+          test -f "$aab" || { echo "::error::AAB not found"; ls -R app/build/outputs/bundle; exit 1; }
+          jarsigner -verify -verbose:summary -certs "$aab" | tee aab-signature.txt
+          grep -q "jar verified" aab-signature.txt
+          grep -q "CN=SafeMoney" aab-signature.txt
+          cp "$aab" "SafeMoney-play-v${{ steps.version.outputs.name }}.aab"
+
+      - name: Upload Play bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: safemoney-play-bundle-v${{ steps.version.outputs.name }}
+          path: SafeMoney-play-v${{ steps.version.outputs.name }}.aab
           if-no-files-found: error
 
       - name: Publish GitHub Release

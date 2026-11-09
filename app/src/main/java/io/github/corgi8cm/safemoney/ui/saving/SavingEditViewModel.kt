@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 class SavingEditViewModel(
@@ -173,16 +174,18 @@ class SavingEditViewModel(
         if (busy) return
         busy = true
         val repo = repository
-        viewModelScope.launch(NonCancellable) {
-            try {
-                val deleted = repo.deleteSaving(id)
-                if (deleted != null) {
-                    val what = deleted.saving.reason.ifBlank { "這筆紀錄" }
-                    onDeleted("已刪除「$what」") { repo.undoDeleteSaving(deleted) }
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                try {
+                    val deleted = repo.deleteSaving(id)
+                    if (deleted != null) {
+                        val what = deleted.saving.reason.ifBlank { "這筆紀錄" }
+                        onDeleted("已刪除「$what」") { repo.undoDeleteSaving(deleted) }
+                    }
+                    done = true
+                } finally {
+                    busy = false
                 }
-                done = true
-            } finally {
-                busy = false
             }
         }
     }
