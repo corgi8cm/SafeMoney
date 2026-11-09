@@ -39,6 +39,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // 有開同步時：開始監聽資料變動，距離上次同步太久就同步一次
+        (application as SafeMoneyApp).syncManager.start()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         QuickActions.actionOf(intent)?.let { pendingAction = it }

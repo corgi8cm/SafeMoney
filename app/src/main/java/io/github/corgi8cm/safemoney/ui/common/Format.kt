@@ -59,3 +59,8 @@ fun Forecast.describe(today: LocalDate, subject: String = "回本"): String? = w
         }
     }
 }
+
+private val DATE_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm")
+
+/** 依手機時區顯示：2026/11/09 21:05 */
+fun Instant.localDateTimeText(zone: ZoneId = ZoneId.systemDefault()): String = atZone(zone).format(DATE_TIME_FORMAT)

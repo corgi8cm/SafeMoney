@@ -15,8 +15,8 @@ android {
         applicationId = "io.github.corgi8cm.safemoney"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.8.0"
+        versionCode = 10
+        versionName = "0.9.0"
     }
 
     // 正式簽章：只在 CI 的 release workflow 透過環境變數提供（金鑰放在 GitHub Secrets，不進 git）。
@@ -119,6 +119,8 @@ dependencies {
 
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.glance.appwidget)
+    implementation(libs.play.services.auth)
+    implementation(libs.kotlinx.coroutines.play.services)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -13,6 +13,11 @@ import io.github.corgi8cm.safemoney.data.backup.BackupData
 import io.github.corgi8cm.safemoney.data.backup.BackupException
 import io.github.corgi8cm.safemoney.diagnostics.CrashLog
 import io.github.corgi8cm.safemoney.reminder.ReminderConfig
+import io.github.corgi8cm.safemoney.sync.AuthFailedException
+import io.github.corgi8cm.safemoney.sync.GoogleDriveAuth
+import io.github.corgi8cm.safemoney.sync.SyncStatus
+import android.content.Intent
+import android.content.IntentSender
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -45,6 +50,59 @@ class SettingsViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DataCounts())
 
     val reminder: StateFlow<ReminderConfig> = app.reminderSettings.config
+
+    val sync: StateFlow<SyncStatus> = app.syncManager.status
+
+    /** 需要顯示 Google 的同意畫面時不是 null；畫面啟動後呼叫 [consentLaunched]。 */
+    var consentRequest by mutableStateOf<IntentSender?>(null)
+        private set
+
+    /** 開始同步：先取得 Google 雲端硬碟的授權（第一次會跳出同意畫面）。 */
+    fun connectSync() = runBusy {
+        try {
+            when (val r = app.driveAuth.authorize()) {
+                is GoogleDriveAuth.Result.Token -> {
+                    app.syncManager.enable()
+                    message = "已開啟同步"
+                }
+                is GoogleDriveAuth.Result.NeedsConsent -> consentRequest = r.intentSender
+            }
+        } catch (e: AuthFailedException) {
+            message = e.message
+        }
+    }
+
+    fun consentLaunched() {
+        consentRequest = null
+    }
+
+    fun onConsentResult(resultOk: Boolean, data: Intent?) {
+        if (!resultOk) {
+            message = "沒有完成授權，同步沒有開啟"
+            return
+        }
+        try {
+            app.driveAuth.tokenFromConsent(data)
+            app.syncManager.enable()
+            message = "已開啟同步"
+        } catch (e: AuthFailedException) {
+            message = e.message
+        }
+    }
+
+    fun syncNow() = runBusy {
+        message = if (app.syncManager.syncNow()) "同步完成" else app.syncManager.status.value.error ?: "目前無法同步"
+    }
+
+    fun disableSync() {
+        app.syncManager.disable()
+        message = "已停止同步，雲端的資料仍然保留"
+    }
+
+    fun deleteCloudData() = runBusy {
+        app.syncManager.deleteCloudData()
+        message = "已刪除雲端的同步資料，並停止同步"
+    }
 
     val updatesSupported: Boolean = app.updateChecker.supported
     val updatesEnabled: StateFlow<Boolean> = app.updateChecker.enabled
