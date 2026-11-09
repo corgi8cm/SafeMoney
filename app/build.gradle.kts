@@ -1,6 +1,5 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
@@ -9,14 +8,15 @@ plugins {
 
 android {
     namespace = "io.github.corgi8cm.safemoney"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.corgi8cm.safemoney"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 10
-        versionName = "0.9.0"
+        // Google Play 目前要求新 App 至少 targetSdk 36（Android 16）
+        targetSdk = 36
+        versionCode = 11
+        versionName = "0.10.0"
     }
 
     // 正式簽章：只在 CI 的 release workflow 透過環境變數提供（金鑰放在 GitHub Secrets，不進 git）。
@@ -60,7 +60,9 @@ android {
             if (releaseStoreFile != null) {
                 signingConfig = signingConfigs.getByName("release")
             }
-            isMinifyEnabled = false
+            // R8：移除沒用到的程式碼與資源，APK 變小
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -71,10 +73,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     buildFeatures {
@@ -89,7 +87,7 @@ android {
     // 遷移測試（MigrationTestHelper）從 assets 讀取已匯出的各版 schema。
     // Robolectric 單元測試只會合併「被測 variant」的 assets，所以放在 debug（正式版不受影響）。
     sourceSets {
-        getByName("debug").assets.srcDir("$projectDir/schemas")
+        getByName("debug").assets.directories += "$projectDir/schemas"
     }
 }
 
