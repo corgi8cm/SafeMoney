@@ -8,6 +8,7 @@ import io.github.corgi8cm.safemoney.reminder.ReminderScheduler
 import io.github.corgi8cm.safemoney.reminder.ReminderSettings
 import io.github.corgi8cm.safemoney.sync.GoogleDriveAuth
 import io.github.corgi8cm.safemoney.sync.SyncManager
+import io.github.corgi8cm.safemoney.ui.intro.IntroSettings
 import io.github.corgi8cm.safemoney.update.UpdateChecker
 import io.github.corgi8cm.safemoney.update.UpdateFeedProvider
 import kotlinx.coroutines.CoroutineScope
@@ -26,6 +27,8 @@ class SafeMoneyApp : Application() {
     val reminderSettings: ReminderSettings by lazy { ReminderSettings(this) }
 
     val reminderScheduler: ReminderScheduler by lazy { ReminderScheduler(this) }
+
+    val introSettings: IntroSettings by lazy { IntroSettings(this) }
 
     val driveAuth: GoogleDriveAuth by lazy { GoogleDriveAuth(this) }
 

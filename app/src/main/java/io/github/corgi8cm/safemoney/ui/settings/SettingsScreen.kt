@@ -68,6 +68,7 @@ private val BACKUP_MIME_TYPES = arrayOf("application/json", "text/plain", "appli
 fun SettingsScreen(
     onBack: () -> Unit,
     onManageReasons: () -> Unit,
+    onOpenIntro: () -> Unit,
     viewModel: SettingsViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val counts by viewModel.counts.collectAsStateWithLifecycle()
@@ -296,6 +297,13 @@ fun SettingsScreen(
                 leadingContent = { Icon(Icons.Filled.Info, contentDescription = null) },
                 headlineContent = { Text("省回來 SafeMoney") },
                 supportingContent = { Text("版本 ${viewModel.appVersion}") },
+            )
+            SettingRow(
+                icon = Icons.Filled.Info,
+                title = "使用說明",
+                subtitle = "再看一次新手說明",
+                enabled = true,
+                onClick = onOpenIntro,
             )
             if (viewModel.updatesSupported) {
                 val updatesEnabled by viewModel.updatesEnabled.collectAsStateWithLifecycle()

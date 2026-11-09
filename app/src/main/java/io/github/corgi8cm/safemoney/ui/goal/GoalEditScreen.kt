@@ -37,10 +37,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -48,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
 import io.github.corgi8cm.safemoney.ui.common.DateField
 import io.github.corgi8cm.safemoney.ui.common.GOAL_COLORS
+import io.github.corgi8cm.safemoney.ui.common.GOAL_COLOR_NAMES
 import io.github.corgi8cm.safemoney.ui.common.GOAL_EMOJIS
 import io.github.corgi8cm.safemoney.ui.common.GoalAvatar
 import io.github.corgi8cm.safemoney.ui.common.MoneyField
@@ -148,21 +149,21 @@ private fun GoalStylePicker(
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StyleOption(selected = color == null, label = "預設顏色", onClick = { onColorChange(null) }) {
-                Text("預設", style = MaterialTheme.typography.labelSmall)
+                Text("預設", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
             }
-            GOAL_COLORS.forEach { c ->
-                StyleOption(selected = color == c, label = "顏色", onClick = { onColorChange(c) }) {
+            GOAL_COLORS.forEachIndexed { i, c ->
+                StyleOption(selected = color == c, label = "${GOAL_COLOR_NAMES[i]}色", onClick = { onColorChange(c) }) {
                     Box(Modifier.size(24.dp).clip(CircleShape).background(Color(c)))
                 }
             }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             StyleOption(selected = emoji == null, label = "不用圖示", onClick = { onEmojiChange(null) }) {
-                Text("無", style = MaterialTheme.typography.labelMedium)
+                Text("無", style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
             }
             GOAL_EMOJIS.forEach { e ->
                 StyleOption(selected = emoji == e, label = e, onClick = { onEmojiChange(e) }) {
-                    Text(e, fontSize = 20.sp)
+                    Text(e, fontSize = with(LocalDensity.current) { 20.dp.toSp() })
                 }
             }
         }
