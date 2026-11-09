@@ -39,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import io.github.corgi8cm.safemoney.SafeMoneyApp
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.progress
@@ -57,6 +59,7 @@ import io.github.corgi8cm.safemoney.ui.common.GoalProgressBar
 import io.github.corgi8cm.safemoney.ui.common.accentColor
 import io.github.corgi8cm.safemoney.ui.common.formatMoney
 import io.github.corgi8cm.safemoney.ui.common.percentText
+import io.github.corgi8cm.safemoney.ui.intro.IntroPager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,6 +76,14 @@ fun HomeScreen(
     val update by viewModel.update.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     var showArchived by rememberSaveable { mutableStateOf(false) }
+    val intro = (LocalContext.current.applicationContext as SafeMoneyApp).introSettings
+    val introSeen by intro.seen.collectAsStateWithLifecycle()
+
+    // 第一次使用（還沒有任何目標、也沒看過說明）先顯示新手說明；已經在用的人不會看到
+    if (!state.loading && !state.hasAnyGoal && !introSeen) {
+        IntroPager(onFinish = intro::markSeen)
+        return
+    }
 
     Scaffold(
         topBar = {

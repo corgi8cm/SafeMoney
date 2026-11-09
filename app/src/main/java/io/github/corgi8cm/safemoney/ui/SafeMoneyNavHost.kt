@@ -20,6 +20,7 @@ import androidx.navigation.navArgument
 import io.github.corgi8cm.safemoney.ui.goal.GoalDetailScreen
 import io.github.corgi8cm.safemoney.ui.goal.GoalEditScreen
 import io.github.corgi8cm.safemoney.ui.home.HomeScreen
+import io.github.corgi8cm.safemoney.ui.intro.IntroPager
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditScreen
 import io.github.corgi8cm.safemoney.ui.settings.QuickReasonsScreen
 import io.github.corgi8cm.safemoney.ui.settings.SettingsScreen
@@ -34,6 +35,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val QUICK_REASONS = "quickReasons"
     const val RECORDS = "records"
+    const val INTRO = "intro"
     const val GOAL_DETAIL = "goalDetail/{$ARG_GOAL_ID}"
     const val GOAL_EDIT = "goalEdit?$ARG_GOAL_ID={$ARG_GOAL_ID}"
     const val SAVING_EDIT = "savingEdit?$ARG_SAVING_ID={$ARG_SAVING_ID}&$ARG_GOAL_ID={$ARG_GOAL_ID}"
@@ -88,7 +90,14 @@ fun SafeMoneyNavHost(
                 StatsScreen(onBack = back)
             }
             composable(Routes.SETTINGS) {
-                SettingsScreen(onBack = back, onManageReasons = { navController.navigate(Routes.QUICK_REASONS) })
+                SettingsScreen(
+                    onBack = back,
+                    onManageReasons = { navController.navigate(Routes.QUICK_REASONS) },
+                    onOpenIntro = { navController.navigate(Routes.INTRO) },
+                )
+            }
+            composable(Routes.INTRO) {
+                IntroPager(onFinish = back, finishLabel = "完成")
             }
             composable(Routes.QUICK_REASONS) {
                 QuickReasonsScreen(onBack = back)

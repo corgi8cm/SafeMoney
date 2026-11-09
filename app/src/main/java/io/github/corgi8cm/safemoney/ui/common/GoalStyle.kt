@@ -11,10 +11,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import io.github.corgi8cm.safemoney.data.db.Goal
 
 /** 目標可選的顏色（ARGB），中間色調，淺色與深色模式都看得清楚。 */
@@ -31,6 +32,9 @@ val GOAL_COLORS: List<Int> = listOf(
     0xFF90A4AE, // 灰
 ).map { it.toInt() }
 
+/** [GOAL_COLORS] 的名稱，給讀螢幕軟體用。 */
+val GOAL_COLOR_NAMES: List<String> = listOf("青綠", "綠", "藍", "紫", "粉紅", "紅", "橘", "黃", "棕", "灰")
+
 /** 常見的「買了覺得太貴」的東西。 */
 val GOAL_EMOJIS: List<String> = listOf(
     "🧥", "👟", "👜", "👗", "⌚", "💍",
@@ -43,7 +47,10 @@ val GOAL_EMOJIS: List<String> = listOf(
 @Composable
 fun Goal.accentColor(): Color = color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
 
-/** 圓形小圖示：有 emoji 顯示 emoji，否則顯示名稱第一個字。 */
+/**
+ * 圓形小圖示：有 emoji 顯示 emoji，否則顯示名稱第一個字。
+ * 是裝飾用（旁邊一定有名稱），所以讀螢幕軟體會略過；字的大小跟著圓圈，不受系統字體大小影響，避免超出圓圈。
+ */
 @Composable
 fun GoalAvatar(
     name: String,
@@ -58,9 +65,10 @@ fun GoalAvatar(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(accent.copy(alpha = 0.25f)),
+            .background(accent.copy(alpha = 0.25f))
+            .clearAndSetSemantics { },
     ) {
-        val fontSize = (size.value * 0.5f).sp
+        val fontSize = with(LocalDensity.current) { (size * 0.5f).toSp() }
         if (emoji != null) {
             Text(emoji, fontSize = fontSize)
         } else {
