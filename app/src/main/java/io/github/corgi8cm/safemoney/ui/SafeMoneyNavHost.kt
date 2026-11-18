@@ -22,6 +22,7 @@ import io.github.corgi8cm.safemoney.ui.goal.GoalEditScreen
 import io.github.corgi8cm.safemoney.ui.home.HomeScreen
 import io.github.corgi8cm.safemoney.ui.intro.IntroPager
 import io.github.corgi8cm.safemoney.ui.recurring.RecurringEditScreen
+import io.github.corgi8cm.safemoney.ui.reserve.ReserveScreen
 import io.github.corgi8cm.safemoney.ui.recurring.RecurringListScreen
 import io.github.corgi8cm.safemoney.ui.recurring.RecurringPromptHost
 import io.github.corgi8cm.safemoney.ui.saving.SavingEditScreen
@@ -42,6 +43,7 @@ object Routes {
     const val RECORDS = "records"
     const val INTRO = "intro"
     const val RECURRING = "recurring"
+    const val RESERVE = "reserve"
     const val RECURRING_EDIT = "recurringEdit?$ARG_RULE_ID={$ARG_RULE_ID}"
     const val GOAL_DETAIL = "goalDetail/{$ARG_GOAL_ID}"
     const val GOAL_EDIT = "goalEdit?$ARG_GOAL_ID={$ARG_GOAL_ID}"
@@ -89,6 +91,7 @@ fun SafeMoneyNavHost(
                     onAddSaving = { navController.navigate(Routes.savingNew()) },
                     onOpenStats = { navController.navigate(Routes.stats()) },
                     onOpenReview = { navController.navigate(Routes.stats(it)) },
+                    onOpenReserve = { navController.navigate(Routes.RESERVE) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenRecords = { navController.navigate(Routes.RECORDS) },
                 )
@@ -115,6 +118,9 @@ fun SafeMoneyNavHost(
                     onOpenIntro = { navController.navigate(Routes.INTRO) },
                     onOpenRecurring = { navController.navigate(Routes.RECURRING) },
                 )
+            }
+            composable(Routes.RESERVE) {
+                ReserveScreen(onBack = back, onOpenSaving = { navController.navigate(Routes.savingEdit(it)) })
             }
             composable(Routes.RECURRING) {
                 RecurringListScreen(

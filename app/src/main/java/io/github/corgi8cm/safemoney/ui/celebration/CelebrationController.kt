@@ -74,8 +74,7 @@ class CelebrationController(
         while (queue.isNotEmpty()) {
             val id = queue.removeFirst()
             val goal = repository.observeGoal(id).first() ?: continue
-            val targets = repository.observeGoals().first()
-                .filter { it.goal.status == GoalStatus.ACTIVE && it.goal.id != id }
+            val targets = repository.transferTargets(excludeGoalId = id)
             current = CelebrationUi(goal, targets)
             return
         }

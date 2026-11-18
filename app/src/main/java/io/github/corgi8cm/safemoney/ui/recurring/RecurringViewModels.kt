@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.corgi8cm.safemoney.data.RecurringRecordResult
 import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
-import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.RecurringSaving
 import io.github.corgi8cm.safemoney.domain.PendingRecurring
 import io.github.corgi8cm.safemoney.domain.Recurrence
@@ -22,7 +21,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -32,11 +30,6 @@ import java.time.LocalDate
 class RecurringListViewModel(repository: SafeMoneyRepository) : ViewModel() {
     val rules: StateFlow<List<RecurringSaving>?> =
         repository.observeRecurring().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
-
-    /** 沒有還沒回本的目標時不能新增（自動記下的錢沒地方放）。 */
-    val hasActiveGoal: StateFlow<Boolean> =
-        repository.observeGoals().map { goals -> goals.any { it.goal.status == GoalStatus.ACTIVE } }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), true)
 }
 
 /** 新增或修改一個定期省錢。 */
@@ -154,14 +147,6 @@ class RecurringPromptViewModel(private val repository: SafeMoneyRepository) : Vi
             if (day == null) emptyList() else Recurrence.pending(rules, day)
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    val hasActiveGoal: StateFlow<Boolean?> =
-        repository.observeGoals().map { goals -> goals.any { it.goal.status == GoalStatus.ACTIVE } }
-            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    /** 因為沒有目標可以分配而移除了設定時的說明。 */
-    var notice by mutableStateOf<String?>(null)
-        private set
-
     /** 記下之後要顯示的訊息（顯示後呼叫 [messageShown]）。 */
     var message by mutableStateOf<String?>(null)
         private set
@@ -171,24 +156,12 @@ class RecurringPromptViewModel(private val repository: SafeMoneyRepository) : Vi
 
     val celebration = CelebrationController(repository, viewModelScope)
 
-    init {
-        // 到期了，但所有目標都已經回本：不跳通知，直接移除所有設定並說明
-        viewModelScope.launch {
-            combine(pending, hasActiveGoal) { list, active -> list.isNotEmpty() && active == false }
-                .collect { removeAll -> if (removeAll) record() }
-        }
-    }
-
     fun setToday(date: LocalDate) {
         today.value = date
     }
 
     /** 使用者關掉通知：記下所有到期的日子。 */
     fun dismiss() = record()
-
-    fun noticeShown() {
-        notice = null
-    }
 
     fun messageShown() {
         message = null
@@ -207,9 +180,6 @@ class RecurringPromptViewModel(private val repository: SafeMoneyRepository) : Vi
                         if (result.count > 0) message = "已記下 ${result.count} 筆定期省錢，共 ${formatMoney(result.total)}"
                         if (result.completedGoalIds.isNotEmpty()) celebration.start(result.completedGoalIds)
                     }
-                    is RecurringRecordResult.RemovedNoGoals ->
-                        notice = "所有目標都已經回本，沒有地方可以分配，所以這次沒有記下來，" +
-                            "也移除了全部 ${result.removed} 個定期省錢設定。新增目標後可以再到設定裡重新設定。"
                 }
             } finally {
                 busy = false

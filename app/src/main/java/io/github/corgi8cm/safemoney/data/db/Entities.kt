@@ -15,7 +15,19 @@ import java.util.UUID
 /** 跨裝置唯一的編號（同步時用來對應同一筆資料；本機的 id 每支手機不同）。 */
 fun newUid(): String = UUID.randomUUID().toString()
 
-enum class GoalStatus { ACTIVE, COMPLETED, ARCHIVED }
+/**
+ * [RESERVE] 是「存錢筒」：所有目標都回本後記的錢、超出最後一個目標的錢都放這裡，
+ * 之後新增目標時先拿來抵。它借用目標的表格存放，但不是真的目標：沒有目標金額、不會回本、不顯示在目標清單。
+ */
+enum class GoalStatus { ACTIVE, COMPLETED, ARCHIVED, RESERVE }
+
+/** 存錢筒固定的編號：每支手機都一樣，同步時才不會變成兩個。 */
+const val RESERVE_UID = "reserve"
+const val RESERVE_NAME = "存錢筒"
+
+fun Goal.isReserve(): Boolean = status == GoalStatus.RESERVE
+
+fun GoalWithSaved.isReserve(): Boolean = goal.isReserve()
 
 /** 回本目標：一筆想省回來的花費。金額單位為「元」。 */
 @Entity(tableName = "goal", indices = [Index(value = ["uid"], unique = true)])

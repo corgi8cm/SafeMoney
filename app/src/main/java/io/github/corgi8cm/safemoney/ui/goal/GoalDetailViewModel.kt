@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
+import io.github.corgi8cm.safemoney.data.db.isReserve
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.SavingWithAllocations
 import io.github.corgi8cm.safemoney.data.db.progress
@@ -43,18 +44,25 @@ class GoalDetailViewModel(
 ) : ViewModel() {
     val goalId: Long = checkNotNull(savedStateHandle.get<Long>(Routes.ARG_GOAL_ID))
 
+    init {
+        // 超出的錢可以轉進存錢筒，先確定它存在
+        viewModelScope.launch { repository.reserveGoalId() }
+    }
+
     val state: StateFlow<GoalDetailUiState> =
         combine(
             repository.observeGoal(goalId),
             repository.observeSavingsForGoal(goalId),
-            repository.observeGoals(),
+            repository.observeGoalsWithReserve(),
         ) { goal, savings, all ->
             val today = LocalDate.now()
             GoalDetailUiState(
                 loading = false,
                 goal = goal,
                 savings = savings,
-                transferTargets = all.filter { it.goal.status == GoalStatus.ACTIVE && it.goal.id != goalId },
+                // 進行中的目標，最後是存錢筒
+                transferTargets = all.filter { (it.goal.status == GoalStatus.ACTIVE || it.isReserve()) && it.goal.id != goalId }
+                    .sortedBy { if (it.isReserve()) 1 else 0 },
                 forecast = goal?.takeIf { it.goal.status == GoalStatus.ACTIVE }?.let { row ->
                     forecastCompletion(
                         remaining = row.progress().remaining,

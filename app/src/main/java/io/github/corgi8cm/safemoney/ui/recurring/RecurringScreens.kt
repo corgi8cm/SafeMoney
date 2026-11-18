@@ -78,7 +78,6 @@ fun RecurringListScreen(
     viewModel: RecurringListViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val rules by viewModel.rules.collectAsStateWithLifecycle()
-    val hasActiveGoal by viewModel.hasActiveGoal.collectAsStateWithLifecycle()
     val messenger = LocalAppMessenger.current
 
     Scaffold(
@@ -94,13 +93,11 @@ fun RecurringListScreen(
             )
         },
         floatingActionButton = {
-            if (hasActiveGoal) {
-                ExtendedFloatingActionButton(
-                    onClick = onAdd,
-                    icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                    text = { Text("新增") },
-                )
-            }
+            ExtendedFloatingActionButton(
+                onClick = onAdd,
+                icon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                text = { Text("新增") },
+            )
         },
     ) { padding ->
         val list = rules ?: return@Scaffold
@@ -111,18 +108,11 @@ fun RecurringListScreen(
             item {
                 Text(
                     "設定好之後，每到那一天一開始，App 裡就會跳出通知；關掉通知就記下一筆。" +
-                        "錢會先補滿最早的目標，超出的再給下一個。哪天沒做到，到紀錄裡刪掉那一筆就好。",
+                        "錢會先補滿最早的目標，超出的再給下一個；目標都回本了就存進存錢筒。哪天沒做到，到紀錄裡刪掉那一筆就好。",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(16.dp),
                 )
-                if (!hasActiveGoal) {
-                    Text(
-                        "目前沒有還沒回本的目標，先回首頁新增目標，才能設定定期省錢。",
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                    )
-                }
                 HorizontalDivider()
             }
             if (list.isEmpty()) {

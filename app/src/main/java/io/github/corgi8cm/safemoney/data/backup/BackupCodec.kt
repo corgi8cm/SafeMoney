@@ -92,7 +92,8 @@ internal data class AllocationJson(val goalId: Long, val amount: Long)
 /** 備份檔的編碼 / 解碼與驗證，不碰資料庫。 */
 object BackupCodec {
     const val FORMAT_ID = "safemoney-backup"
-    const val CURRENT_VERSION = 2
+    /** 3：1.3.0 加了存錢筒（目標狀態 RESERVE）。 */
+    const val CURRENT_VERSION = 3
 
     private val json = Json {
         prettyPrint = true
@@ -170,7 +171,7 @@ object BackupCodec {
             check(g.id > 0) { "目標編號不正確" }
             check(goalIds.add(g.id)) { "目標編號重複（${g.id}）" }
             check(g.name.isNotBlank()) { "有目標沒有名稱" }
-            check(g.amount > 0) { "「${g.name}」的金額必須大於 0" }
+            check(g.amount > 0 || g.status == GoalStatus.RESERVE) { "「${g.name}」的金額必須大於 0" }
         }
         check(goals.map { it.uid }.toSet().size == goals.size) { "目標的 uid 重複" }
 

@@ -32,6 +32,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.corgi8cm.safemoney.ui.celebration.CelebrationDialog
+import io.github.corgi8cm.safemoney.ui.common.LocalAppMessenger
+import io.github.corgi8cm.safemoney.ui.common.formatMoney
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,7 +66,18 @@ fun GoalEditScreen(
     onBack: () -> Unit,
     viewModel: GoalEditViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
-    LaunchedEffect(viewModel.done) { if (viewModel.done) onBack() }
+    val messenger = LocalAppMessenger.current
+    val reserveBalance by viewModel.reserveBalance.collectAsStateWithLifecycle()
+    val celebration = viewModel.celebration
+    LaunchedEffect(viewModel.done, celebration.finished) {
+        if (viewModel.done || celebration.finished) {
+            viewModel.filledMessage?.let(messenger::show)
+            onBack()
+        }
+    }
+    celebration.current?.let { ui ->
+        CelebrationDialog(ui = ui, busy = celebration.busy, onTransfer = celebration::transfer, onNext = celebration::next)
+    }
 
     Scaffold(
         topBar = {
@@ -120,6 +138,18 @@ fun GoalEditScreen(
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (!viewModel.isEdit && reserveBalance > 0) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .toggleable(value = viewModel.useReserve, onValueChange = { viewModel.useReserve = it }, role = Role.Checkbox),
+                ) {
+                    Checkbox(checked = viewModel.useReserve, onCheckedChange = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("先用存錢筒的 ${formatMoney(reserveBalance)} 抵這個目標（夠的話一新增就回本）")
+                }
+            }
             viewModel.error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }

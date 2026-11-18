@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
+import io.github.corgi8cm.safemoney.data.db.isReserve
 import io.github.corgi8cm.safemoney.data.db.progress
 import io.github.corgi8cm.safemoney.domain.SavingForm
 import io.github.corgi8cm.safemoney.ui.AppViewModelProvider
@@ -164,13 +165,20 @@ fun SavingEditScreen(
             } else if (viewModel.splitMode) {
                 if (viewModel.autoAllocate) {
                     Text(
-                        "第一個目標只差一點，超出的部分已經自動分給下一個目標，也可以自己改。",
+                        "第一個目標只差一點，超出的部分已經自動分給下一個目標（目標都滿了就放進存錢筒），也可以自己改。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 SplitGoalList(goals, viewModel)
             } else {
+                if (goals.firstOrNull { it.goal.id == viewModel.selectedGoalId }?.isReserve() == true) {
+                    Text(
+                        "目前的目標都回本了，這筆會先存進存錢筒，之後新增目標時會先拿來抵。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 SingleGoalList(goals, viewModel.selectedGoalId, onSelect = viewModel::selectGoal)
             }
 
@@ -275,6 +283,7 @@ private fun GoalLabel(row: GoalWithSaved, modifier: Modifier = Modifier) {
     Column(modifier) {
         Text(row.goal.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
         val sub = when {
+            row.isReserve() -> "之後新增目標時會先拿來抵（目前 ${formatMoney(row.saved)}）"
             row.goal.status == GoalStatus.ARCHIVED -> "已封存"
             progress.isCompleted -> "已回本"
             else -> "還差 ${formatMoney(progress.remaining)}"

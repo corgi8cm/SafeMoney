@@ -109,18 +109,27 @@ class RecurringRepositoryTest {
     }
 
     @Test
-    fun noGoalLeftRemovesAllRulesWithoutRecording() = runTest {
+    fun noGoalLeftGoesIntoTheReserveAndKeepsRules() = runTest {
         val coat = repo.addGoal("外套", 100, monday)
         repo.addRecurring("不買咖啡", 60, Recurrence.WEEKDAYS, monday, null)
         repo.addRecurring("帶便當", 100, Recurrence.EVERY_DAY, monday, null)
         repo.addSaving("獎金", monday, listOf(AllocationInput(coat, 100)))
         assertEquals(GoalStatus.COMPLETED, repo.observeGoal(coat).first()!!.goal.status)
 
-        val result = repo.recordPendingRecurring(today())
-        assertEquals(RecurringRecordResult.RemovedNoGoals(2), result)
-        assertTrue(repo.observeRecurring().first().isEmpty())
+        val result = repo.recordPendingRecurring(today()) as RecurringRecordResult.Recorded
+        assertEquals(2, result.count)
+        assertEquals(2, repo.observeRecurring().first().size)
         assertEquals(100, saved(coat))
-        assertEquals(1, repo.observeAllSavings().first().size)
+        assertEquals(160, repo.observeReserve().first()!!.saved)
+    }
+
+    @Test
+    fun overflowBeyondLastGoalGoesIntoTheReserve() = runTest {
+        val coat = repo.addGoal("外套", 40, monday)
+        repo.addRecurring("不買咖啡", 60, Recurrence.EVERY_DAY, monday, null)
+        repo.recordPendingRecurring(today())
+        assertEquals(40, saved(coat))
+        assertEquals(20, repo.observeReserve().first()!!.saved)
     }
 
     @Test
@@ -140,9 +149,11 @@ class RecurringRepositoryTest {
         repo.addRecurring("不買咖啡", 60, Recurrence.EVERY_DAY, monday.minusDays(1), null)
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun needsAGoalToFill() = runTest {
+    @Test
+    fun canSetUpWithoutAnyGoal() = runTest {
         repo.addRecurring("不買咖啡", 60, Recurrence.EVERY_DAY, monday, null)
+        repo.recordPendingRecurring(today())
+        assertEquals(60, repo.observeReserve().first()!!.saved)
     }
 
     @Test

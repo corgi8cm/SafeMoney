@@ -341,7 +341,7 @@ private fun ProgressHeader(
                 Spacer(Modifier.height(12.dp))
                 if (canTransfer) {
                     OutlinedButton(onClick = onTransferClick, modifier = Modifier.fillMaxWidth()) {
-                        Text("把多省的 ${formatMoney(progress.overflow)} 轉給其他目標")
+                        Text("把多省的 ${formatMoney(progress.overflow)} 轉給其他目標或存錢筒")
                     }
                 } else {
                     Text(

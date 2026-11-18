@@ -54,7 +54,6 @@ fun RecurringPromptHost(
     }
 
     val pending by viewModel.pending.collectAsStateWithLifecycle()
-    val hasActiveGoal by viewModel.hasActiveGoal.collectAsStateWithLifecycle()
     val messenger = LocalAppMessenger.current
 
     val message = viewModel.message
@@ -70,16 +69,7 @@ fun RecurringPromptHost(
         CelebrationDialog(ui = ui, busy = celebration.busy, onTransfer = celebration::transfer, onNext = celebration::next)
     }
 
-    viewModel.notice?.let { notice ->
-        AlertDialog(
-            onDismissRequest = viewModel::noticeShown,
-            title = { Text("定期省錢已移除") },
-            text = { Text(notice) },
-            confirmButton = { TextButton(onClick = viewModel::noticeShown) { Text("知道了") } },
-        )
-    }
-
-    if (pending.isNotEmpty() && hasActiveGoal == true && !viewModel.busy) {
+    if (pending.isNotEmpty() && !viewModel.busy) {
         RecurringPromptDialog(pending, onDismiss = viewModel::dismiss)
     }
 }

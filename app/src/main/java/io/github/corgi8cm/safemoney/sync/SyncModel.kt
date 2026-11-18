@@ -32,7 +32,8 @@ data class SyncDoc(
 
     companion object {
         const val FORMAT_ID = "safemoney-sync"
-        const val CURRENT_VERSION = 1
+        /** 2：1.3.0 加了存錢筒（舊版 App 不認得，會要求先更新，避免把存錢筒當成一般目標）。 */
+        const val CURRENT_VERSION = 2
     }
 }
 
@@ -47,6 +48,8 @@ data class SyncGoal(
     val emoji: String? = null,
     /** 只同步「封存」；進行中 / 已回本由各裝置依已省金額自動判斷。 */
     val archived: Boolean = false,
+    /** 這是存錢筒（1.3.0 起）。 */
+    val reserve: Boolean = false,
     val createdAt: Long,
     val completedAt: Long? = null,
     val updatedAt: Long,

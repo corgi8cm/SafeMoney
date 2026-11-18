@@ -8,6 +8,9 @@ import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
 import io.github.corgi8cm.safemoney.data.db.DEFAULT_QUICK_REASONS
 import io.github.corgi8cm.safemoney.data.db.Deletion
 import io.github.corgi8cm.safemoney.data.db.QuickReason
+import io.github.corgi8cm.safemoney.data.db.RESERVE_NAME
+import io.github.corgi8cm.safemoney.data.db.RESERVE_UID
+import io.github.corgi8cm.safemoney.data.db.isReserve
 import io.github.corgi8cm.safemoney.data.db.RecurringSaving
 import io.github.corgi8cm.safemoney.data.db.SafeMoneyDatabase
 import io.github.corgi8cm.safemoney.data.db.Saving
@@ -49,7 +52,25 @@ class SafeMoneyRepository(
 
     // ---- 讀取 ----
 
-    fun observeGoals(): Flow<List<GoalWithSaved>> = goalDao.observeAllWithSaved()
+    /** 所有目標（不含存錢筒）。 */
+    fun observeGoals(): Flow<List<GoalWithSaved>> = goalDao.observeAllWithSaved().map { list -> list.filterNot { it.isReserve() } }
+
+    /** 所有目標，加上存錢筒（如果已經建立）。給紀錄顯示「分給誰」、記一筆的選項用。 */
+    fun observeGoalsWithReserve(): Flow<List<GoalWithSaved>> = goalDao.observeAllWithSaved()
+
+    /** 存錢筒與裡面的錢；還沒建立時為 null。 */
+    fun observeReserve(): Flow<GoalWithSaved?> = goalDao.observeAllWithSaved().map { list -> list.firstOrNull { it.isReserve() } }
+
+    /** 存錢筒的編號；還沒有就建立一個。 */
+    suspend fun reserveGoalId(): Long = db.withTransaction { ensureReserve().id }
+
+    /** 可以把超出的錢轉過去的地方：進行中的目標（依建立順序），最後是存錢筒。 */
+    suspend fun transferTargets(excludeGoalId: Long): List<GoalWithSaved> = db.withTransaction {
+        ensureReserve()
+        goalDao.getAllWithSaved()
+            .filter { (it.goal.status == GoalStatus.ACTIVE || it.isReserve()) && it.goal.id != excludeGoalId }
+            .sortedWith(compareBy<GoalWithSaved> { if (it.isReserve()) 1 else 0 }.thenBy { it.goal.createdAt }.thenBy { it.goal.id })
+    }
 
     fun observeGoal(id: Long): Flow<GoalWithSaved?> = goalDao.observeWithSaved(id)
 
@@ -63,7 +84,10 @@ class SafeMoneyRepository(
     fun observeSummary(): Flow<Summary> = observeGoals().map(::summarize)
 
     /** 目前所有目標（給主畫面小工具一次性讀取）。 */
-    suspend fun goalsSnapshot(): List<GoalWithSaved> = goalDao.getAllWithSaved()
+    suspend fun goalsSnapshot(): List<GoalWithSaved> = goalDao.getAllWithSaved().filterNot { it.isReserve() }
+
+    /** 包含存錢筒（給匯出試算表時顯示名稱用）。 */
+    suspend fun goalsSnapshotWithReserve(): List<GoalWithSaved> = goalDao.getAllWithSaved()
 
     /** 今天是否已有省錢紀錄（給每日提醒判斷要不要打擾）。 */
     suspend fun hasSavingOn(date: LocalDate): Boolean = savingDao.countOnDate(date) > 0
@@ -127,6 +151,7 @@ class SafeMoneyRepository(
     suspend fun setArchived(goalId: Long, archived: Boolean) {
         db.withTransaction {
             val goal = requireNotNull(goalDao.getById(goalId)) { "找不到目標 $goalId" }
+            require(!goal.isReserve()) { "存錢筒不能封存" }
             if (archived) {
                 goalDao.update(goal.copy(status = GoalStatus.ARCHIVED, updatedAt = clock.instant()))
             } else if (goal.status == GoalStatus.ARCHIVED) {
@@ -142,6 +167,7 @@ class SafeMoneyRepository(
      */
     suspend fun deleteGoal(goalId: Long): DeletedGoal? = db.withTransaction {
         val goal = goalDao.getById(goalId) ?: return@withTransaction null
+        require(!goal.isReserve()) { "存錢筒不能刪除" }
         val savings = savingDao.getForGoal(goalId)
         val now = clock.instant()
         // 只分給這個目標的紀錄會整筆消失；拆分的紀錄則是內容（分配）有變動
@@ -226,8 +252,31 @@ class SafeMoneyRepository(
         val to = requireNotNull(goalDao.getById(toGoalId)) { "找不到目標 $toGoalId" }
         require(to.status != GoalStatus.ARCHIVED) { "不能轉給已封存的目標" }
 
-        val overflow = (from.saved - from.goal.amount).coerceAtLeast(0)
-        var remaining = overflow
+        val overflow = if (from.isReserve()) 0 else (from.saved - from.goal.amount).coerceAtLeast(0)
+        moveAmount(fromGoalId, toGoalId, overflow)
+        TransferResult(transferred = overflow, completedGoalIds = refreshCompletion(listOf(fromGoalId, toGoalId)))
+    }
+
+    /**
+     * 新增目標時「先用存錢筒的錢抵」：從存錢筒搬到 [goalId]，最多搬到剛好回本。
+     * @return 搬了多少，以及因此回本的目標
+     */
+    suspend fun fillFromReserve(goalId: Long): TransferResult = db.withTransaction {
+        val reserve = goalDao.getByUid(RESERVE_UID)?.let { goalDao.getWithSaved(it.id) }
+            ?: return@withTransaction TransferResult(0, emptyList())
+        val goal = requireNotNull(goalDao.getWithSaved(goalId)) { "找不到目標 $goalId" }
+        require(goal.goal.status == GoalStatus.ACTIVE) { "只能抵還沒回本的目標" }
+        val amount = minOf(reserve.saved, goal.goal.amount - goal.saved).coerceAtLeast(0)
+        moveAmount(reserve.goal.id, goalId, amount)
+        TransferResult(transferred = amount, completedGoalIds = refreshCompletion(listOf(goalId)))
+    }
+
+    /**
+     * 不新增紀錄，而是把 [fromGoalId] 最新的幾筆分配改分給 [toGoalId]，總共 [amount] 元。
+     * 紀錄的總額不變，只是拆分的內容改了。
+     */
+    private suspend fun moveAmount(fromGoalId: Long, toGoalId: Long, amount: Long) {
+        var remaining = amount
         for (allocation in savingDao.allocationsForGoalNewestFirst(fromGoalId)) {
             if (remaining == 0L) break
             val moved = minOf(allocation.amount, remaining)
@@ -247,7 +296,6 @@ class SafeMoneyRepository(
                 savingDao.updateSaving(it.saving.copy(updatedAt = clock.instant()))
             }
         }
-        TransferResult(transferred = overflow, completedGoalIds = refreshCompletion(listOf(fromGoalId, toGoalId)))
     }
 
     /** @return 刪除前的紀錄，給「復原」用；不存在時為 null */
@@ -288,7 +336,6 @@ class SafeMoneyRepository(
         endDate: LocalDate?,
     ): Long = db.withTransaction {
         Recurrence.validate(reason, amount, days, startDate, endDate, LocalDate.now(clock), maxReasonLength = MAX_REASON_LENGTH)
-        require(hasActiveGoal()) { "要先有還沒回本的目標，才能設定定期省錢" }
         val now = clock.instant()
         recurringDao.insert(
             RecurringSaving(
@@ -354,7 +401,7 @@ class SafeMoneyRepository(
      *
      * 每一筆都照「一項一項省回來」分配（最早建立、還沒回本的目標先補滿，超出的給下一個）。
      * 已經記過（另一支手機同步過來）或被使用者刪掉的那一天不會再記。
-     * 沒有任何還沒回本的目標時不記，並移除所有定期省錢設定。
+     * 所有目標都回本了（或超出最後一個目標）的部分放進存錢筒。
      */
     suspend fun recordPendingRecurring(today: LocalDate = LocalDate.now(clock)): RecurringRecordResult =
         db.withTransaction {
@@ -362,14 +409,10 @@ class SafeMoneyRepository(
             val pending = Recurrence.pending(rules, today)
             if (pending.isEmpty()) return@withTransaction RecurringRecordResult.NothingDue
             val now = clock.instant()
+            val reserveId = ensureReserve().id
             val active = goalDao.getAllWithSaved()
                 .filter { it.goal.status == GoalStatus.ACTIVE }
                 .sortedWith(compareBy<GoalWithSaved> { it.goal.createdAt }.thenBy { it.goal.id })
-            if (active.isEmpty()) {
-                deletionDao.insertAll(rules.map { Deletion(it.uid, Deletion.RECURRING, now) })
-                recurringDao.deleteAll()
-                return@withTransaction RecurringRecordResult.RemovedNoGoals(rules.size)
-            }
 
             val remaining = LinkedHashMap<Long, Long>()
             active.forEach { remaining[it.goal.id] = it.goal.amount - it.saved }
@@ -379,14 +422,14 @@ class SafeMoneyRepository(
             for (item in pending) {
                 val uid = Recurrence.savingUid(item.rule.uid, item.date)
                 if (savingDao.countByUid(uid) > 0 || deletionDao.countByUid(uid) > 0) continue
-                val parts = Allocations.fillInOrder(item.rule.amount, remaining.map { it.key to it.value })
+                val parts = Allocations.fillInOrder(item.rule.amount, remaining.map { it.key to it.value }, leftoverTo = reserveId)
                 val at = Recurrence.recordedAt(item.date, clock.zone)
                 val savingId = savingDao.insertSaving(
                     Saving(reason = item.rule.reason, date = item.date, createdAt = at, uid = uid, updatedAt = at)
                 )
                 savingDao.insertAllocations(parts.map { SavingAllocation(savingId, it.goalId, it.amount) })
                 parts.forEach {
-                    remaining[it.goalId] = remaining.getValue(it.goalId) - it.amount
+                    remaining[it.goalId]?.let { need -> remaining[it.goalId] = need - it.amount }
                     touched += it.goalId
                 }
                 count++
@@ -492,7 +535,8 @@ class SafeMoneyRepository(
             val keepGoals = data.goals.map { it.uid }.toSet()
             val keepSavings = data.savings.map { it.saving.uid }.toSet()
             deletionDao.insertAll(
-                goalDao.getAll().filter { it.uid !in keepGoals }.map { Deletion(it.uid, Deletion.GOAL, now) } +
+                // 存錢筒不留刪除紀錄：它的修改時間固定，留了會讓其他手機上的存錢筒永遠被刪掉
+                goalDao.getAll().filter { it.uid !in keepGoals && !it.isReserve() }.map { Deletion(it.uid, Deletion.GOAL, now) } +
                     savingDao.getAllWithAllocations().filter { it.saving.uid !in keepSavings }
                         .map { Deletion(it.saving.uid, Deletion.SAVING, now) }
             )
@@ -540,6 +584,7 @@ class SafeMoneyRepository(
                     color = g.color,
                     emoji = g.emoji,
                     archived = g.status == GoalStatus.ARCHIVED,
+                    reserve = g.isReserve(),
                     createdAt = g.createdAt.toEpochMilli(),
                     completedAt = g.completedAt?.toEpochMilli(),
                     updatedAt = g.updatedAt.toEpochMilli(),
@@ -592,8 +637,9 @@ class SafeMoneyRepository(
         for (g in doc.goals) {
             val existing = localGoals[g.uid]
             val status = when {
+                g.reserve -> GoalStatus.RESERVE
                 g.archived -> GoalStatus.ARCHIVED
-                existing != null && existing.status != GoalStatus.ARCHIVED -> existing.status
+                existing != null && existing.status != GoalStatus.ARCHIVED && !existing.isReserve() -> existing.status
                 else -> GoalStatus.ACTIVE
             }
             val entity = Goal(
@@ -682,6 +728,21 @@ class SafeMoneyRepository(
 
     // ---- 內部 ----
 
+    /** 存錢筒；還沒有就建立。內容固定，兩支手機各自建立的也會一模一樣。 */
+    private suspend fun ensureReserve(): Goal {
+        goalDao.getByUid(RESERVE_UID)?.let { return it }
+        val reserve = Goal(
+            name = RESERVE_NAME,
+            amount = 0,
+            purchaseDate = LocalDate.ofEpochDay(0),
+            status = GoalStatus.RESERVE,
+            createdAt = Instant.EPOCH,
+            uid = RESERVE_UID,
+            updatedAt = Instant.EPOCH,
+        )
+        return reserve.copy(id = goalDao.insert(reserve))
+    }
+
     /** 資料又回來了（復原、還原），移除它們的刪除紀錄。分批避免超過 SQLite 參數上限。 */
     private suspend fun clearDeletions(uids: List<String>) {
         uids.chunked(500).forEach { deletionDao.deleteByUids(it) }
@@ -752,6 +813,4 @@ sealed interface RecurringRecordResult {
     /** 記下了 [count] 筆，共 [total] 元；[completedGoalIds] 是因此剛回本的目標。 */
     data class Recorded(val count: Int, val total: Long, val completedGoalIds: List<Long>) : RecurringRecordResult
 
-    /** 所有目標都已經回本，沒有記，並移除了 [removed] 個定期省錢設定。 */
-    data class RemovedNoGoals(val removed: Int) : RecurringRecordResult
 }

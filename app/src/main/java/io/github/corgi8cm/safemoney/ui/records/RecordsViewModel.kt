@@ -45,7 +45,7 @@ class RecordsViewModel(private val repository: SafeMoneyRepository) : ViewModel(
     val filter: StateFlow<RecordFilter> = _filter.asStateFlow()
 
     val state: StateFlow<RecordsUiState> =
-        combine(repository.observeAllSavings(), repository.observeGoals(), _filter) { savings, goals, filter ->
+        combine(repository.observeAllSavings(), repository.observeGoalsWithReserve(), _filter) { savings, goals, filter ->
             buildRecords(savings, goals, filter)
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RecordsUiState())
 
@@ -62,7 +62,7 @@ class RecordsViewModel(private val repository: SafeMoneyRepository) : ViewModel(
     /** 目前篩選出來的紀錄轉成試算表（CSV），以及紀錄筆數。 */
     suspend fun csvForCurrentFilter(): Pair<String, Int> {
         val savings = filterRecords(repository.observeAllSavings().first(), _filter.value, { it.saving.date }, { it.saving.reason })
-        val names = repository.goalsSnapshot().associate { it.goal.id to it.goal.name }
+        val names = repository.goalsSnapshotWithReserve().associate { it.goal.id to it.goal.name }
         return CsvExport.build(savings, names) to savings.size
     }
 }

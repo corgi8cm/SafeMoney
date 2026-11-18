@@ -101,7 +101,7 @@ class BackupCodecTest {
     @Test
     fun rejectsOtherFormatsAndNewerVersions() {
         assertRejected(minimal(format = "other-app"), "不是省回來的備份檔")
-        assertRejected(minimal(version = 3), "較新版本")
+        assertRejected(minimal(version = 4), "較新版本")
     }
 
     @Test
