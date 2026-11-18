@@ -10,6 +10,12 @@ import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.db.Goal
 import io.github.corgi8cm.safemoney.domain.SavingForm
 import io.github.corgi8cm.safemoney.ui.Routes
+import io.github.corgi8cm.safemoney.ui.celebration.CelebrationController
+import io.github.corgi8cm.safemoney.ui.common.formatMoney
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -38,6 +44,20 @@ class GoalEditViewModel(
         private set
 
     private var original: Goal? = null
+
+    /** 存錢筒裡的錢；新增目標時可以先拿來抵。 */
+    val reserveBalance: StateFlow<Long> =
+        repository.observeReserve().map { it?.saved ?: 0 }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    /** 新增目標時要不要先用存錢筒的錢抵（預設要）。 */
+    var useReserve by mutableStateOf(true)
+
+    /** 用存錢筒抵了多少的說明，離開畫面時顯示。 */
+    var filledMessage by mutableStateOf<String?>(null)
+        private set
+
+    /** 存錢筒的錢一抵就回本時，先慶祝再離開。 */
+    val celebration = CelebrationController(repository, viewModelScope)
 
     init {
         if (goalId != null) {
@@ -71,10 +91,21 @@ class GoalEditViewModel(
 
         saving = true
         viewModelScope.launch {
+            var celebrating = false
             try {
                 val existing = original
                 if (existing == null) {
-                    repository.addGoal(name, amount, purchaseDate, note, color = color, emoji = emoji)
+                    val id = repository.addGoal(name, amount, purchaseDate, note, color = color, emoji = emoji)
+                    if (useReserve && reserveBalance.value > 0) {
+                        val result = repository.fillFromReserve(id)
+                        if (result.transferred > 0) filledMessage = "已用存錢筒的 ${formatMoney(result.transferred)} 抵掉"
+                        if (result.completedGoalIds.isNotEmpty()) {
+                            // 保持 saving，慶祝看完（celebration.finished）才離開
+                            celebrating = true
+                            celebration.start(result.completedGoalIds)
+                            return@launch
+                        }
+                    }
                 } else {
                     repository.updateGoal(
                         existing.copy(
@@ -91,7 +122,7 @@ class GoalEditViewModel(
             } catch (e: IllegalArgumentException) {
                 error = e.message
             } finally {
-                saving = false
+                if (!celebrating) saving = false
             }
         }
     }

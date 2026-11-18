@@ -1,6 +1,7 @@
 package io.github.corgi8cm.safemoney.sync
 
 import io.github.corgi8cm.safemoney.data.db.Deletion
+import io.github.corgi8cm.safemoney.data.db.RESERVE_UID
 import java.time.Duration
 import java.time.Instant
 
@@ -26,6 +27,8 @@ fun mergeSync(local: SyncDoc, remote: SyncDoc?, now: Instant): SyncDoc {
         val current = tombstones[d.uid]
         if (current == null || d.deletedAt > current.deletedAt) tombstones[d.uid] = d
     }
+    // 存錢筒不能被刪除（它的修改時間固定，有墓碑就永遠回不來了）
+    tombstones.remove(RESERVE_UID)
 
     fun <T> pickLatest(items: List<T>, uid: (T) -> String, updatedAt: (T) -> Long): List<T> =
         items.groupBy(uid).values.mapNotNull { versions ->

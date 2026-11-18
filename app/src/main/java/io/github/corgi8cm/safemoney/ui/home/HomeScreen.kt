@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import io.github.corgi8cm.safemoney.data.db.RESERVE_NAME
 import java.time.YearMonth
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.getValue
@@ -73,11 +74,13 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenRecords: () -> Unit,
     onOpenReview: (YearMonth) -> Unit = {},
+    onOpenReserve: () -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val update by viewModel.update.collectAsStateWithLifecycle()
     val monthlyCard by viewModel.monthlyCard.collectAsStateWithLifecycle()
+    val reserveBalance by viewModel.reserveBalance.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     var showArchived by rememberSaveable { mutableStateOf(false) }
     val intro = (LocalContext.current.applicationContext as SafeMoneyApp).introSettings
@@ -102,7 +105,8 @@ fun HomeScreen(
         },
         snackbarHost = { SnackbarHost(LocalAppMessenger.current.hostState) },
         floatingActionButton = {
-            if (state.active.isNotEmpty()) {
+            // 目標都回本了也可以繼續記（存進存錢筒）
+            if (state.hasAnyGoal) {
                 ExtendedFloatingActionButton(
                     onClick = onAddSaving,
                     icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -142,6 +146,9 @@ fun HomeScreen(
                         )
                     }
                 }
+                if (reserveBalance > 0) {
+                    item(key = "reserve") { ReserveCard(reserveBalance, onClick = onOpenReserve) }
+                }
                 state.summary?.takeIf { it.goalCount > 0 }?.let { summary ->
                     item(key = "summary") { SummaryCard(summary, onClick = onOpenStats) }
                 }
@@ -173,6 +180,23 @@ fun HomeScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ReserveCard(balance: Long, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+        ),
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text("🐷 $RESERVE_NAME：${formatMoney(balance)}", style = MaterialTheme.typography.titleMedium)
+            Text("下次新增目標時會先拿來抵", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -248,6 +272,12 @@ private fun AllDoneCard(onAddGoal: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("全部都省回來了！", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "之後記的錢會先存進存錢筒，下次新增目標時直接拿來抵。",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center,
+            )
             Spacer(Modifier.height(8.dp))
             Button(onClick = onAddGoal) { Text("新增下一個目標") }
         }

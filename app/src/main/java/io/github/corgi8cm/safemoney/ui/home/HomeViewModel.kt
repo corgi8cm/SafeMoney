@@ -12,6 +12,7 @@ import io.github.corgi8cm.safemoney.ui.stats.ReviewCardSettings
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.LocalDate
 import java.time.YearMonth
@@ -42,6 +43,11 @@ class HomeViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     fun dismissMonthlyCard(month: YearMonth) = reviewCardSettings.dismiss(month)
+
+    /** 存錢筒裡的錢（還沒建立時是 0）。 */
+    val reserveBalance: StateFlow<Long> =
+        repository.observeReserve().map { it?.saved ?: 0 }
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
 
     /** 有新版本時在首頁上方提醒（只有 github 版）。 */
     val update = updateChecker.available

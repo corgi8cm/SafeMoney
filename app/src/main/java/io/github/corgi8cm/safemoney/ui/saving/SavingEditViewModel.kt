@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import io.github.corgi8cm.safemoney.data.SafeMoneyRepository
 import io.github.corgi8cm.safemoney.data.db.GoalStatus
 import io.github.corgi8cm.safemoney.data.db.GoalWithSaved
+import io.github.corgi8cm.safemoney.data.db.isReserve
 import io.github.corgi8cm.safemoney.domain.Allocations
 import io.github.corgi8cm.safemoney.domain.SavingForm
 import io.github.corgi8cm.safemoney.ui.Routes
@@ -36,12 +37,31 @@ class SavingEditViewModel(
     /** 編輯時，原本分配到的目標就算已封存也要能看到。 */
     private val keepGoalIds = MutableStateFlow<Set<Long>>(emptySet())
 
-    /** 可以選的目標：未封存的，加上這筆紀錄原本分配到的。 */
+    /** 存錢筒要不要出現在選項裡（沒有進行中的目標、或錢被自動分進去時才出現）。 */
+    private val showReserve = MutableStateFlow(false)
+
+    /** 存錢筒的編號（打開畫面時確定存在）。 */
+    private var reserveId: Long? = null
+
+    /**
+     * 可以選的目標：未封存的，加上這筆紀錄原本分配到的。
+     * 存錢筒只在「沒有進行中的目標」或「錢已經分進去」時出現，排在最後。
+     */
     val goals: StateFlow<List<GoalWithSaved>> =
-        combine(repository.observeGoals(), keepGoalIds) { all, keep ->
-            all.filter { it.goal.status != GoalStatus.ARCHIVED || it.goal.id in keep }
-                // 進行中的排前面
-                .sortedBy { if (it.goal.status == GoalStatus.ACTIVE) 0 else 1 }
+        combine(repository.observeGoalsWithReserve(), keepGoalIds, showReserve) { all, keep, reserveShown ->
+            val noActive = all.none { it.goal.status == GoalStatus.ACTIVE }
+            all.filter { row ->
+                when {
+                    row.isReserve() -> noActive || reserveShown || row.goal.id in keep
+                    else -> row.goal.status != GoalStatus.ARCHIVED || row.goal.id in keep
+                }
+            }.sortedBy {
+                when {
+                    it.goal.status == GoalStatus.ACTIVE -> 0
+                    it.isReserve() -> 2
+                    else -> 1
+                }
+            }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** 快捷原因，常用的在前面。 */
@@ -79,6 +99,7 @@ class SavingEditViewModel(
 
     init {
         viewModelScope.launch {
+            reserveId = repository.reserveGoalId()
             if (savingId != null) {
                 val existing = repository.getSaving(savingId)
                 if (existing == null) {
@@ -99,8 +120,10 @@ class SavingEditViewModel(
             } else {
                 val available = repository.observeGoals().first()
                     .filter { it.goal.status != GoalStatus.ARCHIVED }
+                // 所有目標都回本了：預設存進存錢筒
                 selectedGoalId = presetGoalId?.takeIf { id -> available.any { it.goal.id == id } }
                     ?: available.firstOrNull { it.goal.status == GoalStatus.ACTIVE }?.goal?.id
+                    ?: reserveId
             }
         }
     }
@@ -124,8 +147,9 @@ class SavingEditViewModel(
     private fun applyAutoAllocation() {
         val total = SavingForm.parseAmount(amountText) ?: return
         val active = goals.value.filter { it.goal.status == GoalStatus.ACTIVE }
-        val parts = Allocations.fillInOrder(total, active.map { it.goal.id to (it.goal.amount - it.saved) })
+        val parts = Allocations.fillInOrder(total, active.map { it.goal.id to (it.goal.amount - it.saved) }, leftoverTo = reserveId)
         if (parts.isEmpty()) return
+        if (parts.any { it.goalId == reserveId }) showReserve.value = true
         if (parts.size == 1) {
             splitMode = false
             splitAmounts.clear()

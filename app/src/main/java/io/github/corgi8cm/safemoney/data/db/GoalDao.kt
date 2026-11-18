@@ -41,6 +41,9 @@ interface GoalDao {
     @Query("SELECT * FROM goal WHERE id = :id")
     suspend fun getById(id: Long): Goal?
 
+    @Query("SELECT * FROM goal WHERE uid = :uid")
+    suspend fun getByUid(uid: String): Goal?
+
     @Query("$GOAL_WITH_SAVED ORDER BY goal.createdAt ASC, goal.id ASC")
     fun observeAllWithSaved(): Flow<List<GoalWithSaved>>
 

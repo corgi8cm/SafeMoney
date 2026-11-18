@@ -122,7 +122,7 @@ private fun CelebrationCard(
             if (canTransfer) {
                 Spacer(Modifier.height(20.dp))
                 Text(
-                    "還多省了 ${formatMoney(ui.overflow)}，要轉給哪個目標？",
+                    "還多省了 ${formatMoney(ui.overflow)}，要轉到哪裡？",
                     style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.Center,
                 )
