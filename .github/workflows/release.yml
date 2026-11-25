@@ -75,6 +75,14 @@ jobs:
         # APK 給 GitHub Releases；AAB（play 版本）是將來上架 Google Play 用的，只當作 artifact 保存
         run: gradle testGithubDebugUnitTest assembleGithubRelease bundlePlayRelease --stacktrace
 
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-test-reports
+          path: app/build/test-results/
+          if-no-files-found: ignore
+
       - name: Verify APK signature
         run: |
           apk=app/build/outputs/apk/github/release/app-github-release.apk

@@ -83,6 +83,7 @@ fun HomeScreen(
     val reserveBalance by viewModel.reserveBalance.collectAsStateWithLifecycle()
     val uriHandler = LocalUriHandler.current
     var showArchived by rememberSaveable { mutableStateOf(false) }
+    var showTips by rememberSaveable { mutableStateOf(false) }
     val intro = (LocalContext.current.applicationContext as SafeMoneyApp).introSettings
     val introSeen by intro.seen.collectAsStateWithLifecycle()
 
@@ -99,6 +100,7 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = onOpenRecords) { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "所有紀錄") }
                     IconButton(onClick = onAddGoal) { Icon(Icons.Filled.Add, contentDescription = "新增目標") }
+                    TipsButton(onClick = { showTips = true })
                     IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, contentDescription = "設定") }
                 },
             )
@@ -182,6 +184,8 @@ fun HomeScreen(
             }
         }
     }
+
+    if (showTips) SavingTipsSheet(onDismiss = { showTips = false })
 }
 
 @Composable
